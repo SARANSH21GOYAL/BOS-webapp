@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOS Microscopy App</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => console.log("Offline ready!"))
+      .catch(err => console.log("SW Error: " + err));
+  }
+</script>
+</head>
+<body>
+    <h1>BOS Microscopy Web App</h1>
+    <p id="fps">FPS: 0</p>
+    <button id="captureBtn">Capture Reference Frame</button>
+    <canvas id="output" width="640" height="480"></canvas>
+    <video id="webcam" width="640" height="480" autoplay style="display:none"></video>
+
+    <script src="app.js"></script>
+    <script src="https://docs.opencv.org/4.8.0/opencv.js" 
+            onload="onOpenCvReady()" 
+            type="text/javascript">
+    </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "BOS Microscopy App",
+  "short_name": "BOS App",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#00e5ff"
+}
