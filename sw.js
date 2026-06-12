@@ -5,6 +5,7 @@ const FILES_TO_CACHE = [
   '/app.js',
   '/style.css',
   '/manifest.json'
+  '/opencv.js'
 ];
 
 // Install — save all files to cache
