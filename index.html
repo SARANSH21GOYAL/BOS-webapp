@@ -6,10 +6,13 @@
     <title>BOS Microscopy App</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
-<script>
+    <script>
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/BOS-webapp/sw.js')
-      .then(() => console.log("Offline ready!"))
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => {
+        reg.update();
+        console.log("Offline ready!")
+      })
       .catch(err => console.log("SW Error: " + err));
   }
 </script>
@@ -18,6 +21,51 @@
     <h1>BOS Microscopy Web App</h1>
     <p id="fps">FPS: 0</p>
     <button id="captureBtn">Capture Reference Frame</button>
+    <div id="controls">
+      <div class="slider-group">
+        <label>Levels: <span id="levelsVal">3</span></label>
+        <input type="range" id="levelsSlider" min="1" max="5" value="3">
+      </div>
+      <div class="slider-group">
+        <label>Window Size: <span id="windowVal">15</span></label>
+        <input type="range" id="windowSlider" min="5" max="25" value="15" step="2">
+      </div>
+      <div class="slider-group">
+        <label>Resolution: <span id="resVal">640x480</span></label>
+        <select id="resSelect">
+          <option value="640x480">640x480 (Default)</option>
+          <option value="480x360">480x360 (Medium)</option>
+          <option value="320x240">320x240 (Fast)</option>
+          <option value="160x120">160x120 (Fastest)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Upload Section -->
+    <div id="uploadSection">
+      <h3>Upload Images</h3>
+      <div class="upload-group">
+        <label>Reference Image:</label>
+        <input type="file" id="refImage" accept="image/*">
+      </div>
+      <div class="upload-group">
+        <label>Flow Image:</label>
+        <input type="file" id="flowImage" accept="image/*">
+      </div>
+      <button id="processBtn">Calculate Optical Flow</button>
+      <button id="downloadBtn" style="display:none">Download Result ⬇️</button>
+    </div>
+    
+    <div id="burstSection">
+  <h3>Burst Capture</h3>
+  <button id="burstBtn">📸 Capture Burst</button>
+  <div id="burstDownloads" style="display:none">
+    <button id="downloadImg1">Download Image 1 ⬇️</button>
+    <button id="downloadImg2">Download Image 2 ⬇️</button>
+    <button id="downloadFlow">Download Flow Result ⬇️</button>
+  </div>
+</div>
+    
     <canvas id="output" width="640" height="480"></canvas>
     <video id="webcam" width="640" height="480" autoplay style="display:none"></video>
 
