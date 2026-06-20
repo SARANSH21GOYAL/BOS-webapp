@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bos-app-v3';
+const CACHE_NAME = 'bos-app-v8';
 const FILES_TO_CACHE = [
   '/BOS-webapp/',
   '/BOS-webapp/index.html',
