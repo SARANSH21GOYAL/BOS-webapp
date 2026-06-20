@@ -48,3 +48,141 @@ h1 {
 #captureBtn:hover {
   background-color: #00ff88;
 }
+
+#controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.slider-group {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.slider-group label {
+  color: #00e5ff;
+  font-size: 14px;
+}
+
+input[type="range"] {
+  width: 80%;
+  accent-color: #00e5ff;
+}
+
+#resSelect {
+  background-color: #1a1a2e;
+  color: #00e5ff;
+  border: 2px solid #00e5ff;
+  padding: 8px 15px;
+  font-size: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 80%;
+}
+
+#uploadSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 15px;
+  border: 2px solid #00e5ff;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 640px;
+}
+
+#uploadSection h3 {
+  color: #00e5ff;
+  margin: 0;
+}
+
+.upload-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+}
+
+.upload-group label {
+  color: #00e5ff;
+  font-size: 14px;
+}
+
+#processBtn {
+  background-color: #00e5ff;
+  color: #0a0a0a;
+  border: none;
+  padding: 12px 30px;
+  font-size: 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+#downloadBtn {
+  background-color: #00ff88;
+  color: #0a0a0a;
+  border: none;
+  padding: 12px 30px;
+  font-size: 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+#burstSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 15px;
+  border: 2px solid #00ff88;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 640px;
+}
+
+#burstSection h3 {
+  color: #00ff88;
+  margin: 0;
+}
+
+#burstBtn {
+  background-color: #00ff88;
+  color: #0a0a0a;
+  border: none;
+  padding: 12px 30px;
+  font-size: 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+#burstDownloads {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+#downloadImg1, #downloadImg2, #downloadFlow {
+  background-color: #1a1a2e;
+  color: #00ff88;
+  border: 2px solid #00ff88;
+  padding: 8px 15px;
+  font-size: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
