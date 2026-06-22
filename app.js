@@ -1,24 +1,191 @@
+let intervalId = null;
+let camWidth = 640;
+let camHeight = 480;
+let levels = 3;
+let windowSize = 15;
 let video = document.getElementById('webcam');
 let canvas = document.getElementById('output');
 let ctx = canvas.getContext('2d', { willReadFrequently: true });
 let prevFrame = null;
 let referenceFrame = null;
 
-// FPS tracking
 let frameCount = 0;
 let lastTime = performance.now();
 
-// Capture reference frame button
 document.getElementById('captureBtn').addEventListener('click', function() {
   if (referenceFrame == null) {
     referenceFrame = prevFrame;
-    console.log("Reference frame captured!");
     this.innerText = "Reference Frame Captured ✅ (Click to reset)";
   } else {
     referenceFrame = null;
     this.innerText = "Capture Reference Frame";
-    console.log("Reference frame cleared!");
   }
+});
+
+document.getElementById('levelsSlider').addEventListener('input', function() {
+  levels = parseInt(this.value);
+  document.getElementById('levelsVal').innerText = this.value;
+});
+
+document.getElementById('windowSlider').addEventListener('input', function() {
+  windowSize = parseInt(this.value);
+  document.getElementById('windowVal').innerText = this.value;
+});
+
+document.getElementById('resSelect').addEventListener('change', function() {
+  let parts = this.value.split('x');
+  camWidth = parseInt(parts[0]);
+  camHeight = parseInt(parts[1]);
+  document.getElementById('resVal').innerText = this.value;
+  canvas.width = camWidth;
+  canvas.height = camHeight;
+  prevFrame = null;
+  referenceFrame = null;
+  document.getElementById('captureBtn').innerText = "Capture Reference Frame";
+  startWebcam();
+});
+
+document.getElementById('processBtn').addEventListener('click', function() {
+  let refFile = document.getElementById('refImage').files[0];
+  let flowFile = document.getElementById('flowImage').files[0];
+
+  if (!refFile || !flowFile) {
+    alert('Dono images select karo!');
+    return;
+  }
+
+  let img1 = new Image();
+  let img2 = new Image();
+
+  img1.onload = function() {
+    img2.onload = function() {
+      canvas.width = img1.width;
+      canvas.height = img1.height;
+
+      ctx.drawImage(img1, 0, 0);
+      let frame1 = ctx.getImageData(0, 0, img1.width, img1.height);
+
+      ctx.drawImage(img2, 0, 0);
+      let frame2 = ctx.getImageData(0, 0, img2.width, img2.height);
+
+      let mat1 = cv.matFromImageData(frame1);
+      let mat2 = cv.matFromImageData(frame2);
+
+      let gray1 = new cv.Mat();
+      let gray2 = new cv.Mat();
+      cv.cvtColor(mat1, gray1, cv.COLOR_RGBA2GRAY);
+      cv.cvtColor(mat2, gray2, cv.COLOR_RGBA2GRAY);
+
+      let flow = new cv.Mat();
+      cv.calcOpticalFlowFarneback(
+        gray1, gray2, flow,
+        0.5, levels, windowSize, 3, 5, 1.2, 0
+      );
+
+      visualizeFlow(flow);
+      document.getElementById('downloadBtn').style.display = 'inline-block';
+
+      mat1.delete(); mat2.delete();
+      gray1.delete(); gray2.delete();
+      flow.delete();
+    };
+    img2.src = URL.createObjectURL(flowFile);
+  };
+  img1.src = URL.createObjectURL(refFile);
+});
+
+document.getElementById('downloadBtn').addEventListener('click', function() {
+  let link = document.createElement('a');
+  link.download = 'optical_flow_result.png';
+  link.href = canvas.toDataURL();
+  link.click();
+});
+
+let burstImg1 = null;
+let burstImg2 = null;
+
+document.getElementById('burstBtn').addEventListener('click', function() {
+  this.innerText = "Capturing...";
+  this.disabled = true;
+
+  // Pehli image lo
+  let tempCanvas = document.createElement('canvas');
+  tempCanvas.width = camWidth;
+  tempCanvas.height = camHeight;
+  let tempCtx = tempCanvas.getContext('2d');
+  tempCtx.drawImage(video, 0, 0, camWidth, camHeight);
+  burstImg1 = tempCanvas.toDataURL('image/png');
+
+  // 500ms baad doosri image lo
+  setTimeout(function() {
+    tempCtx.drawImage(video, 0, 0, camWidth, camHeight);
+    burstImg2 = tempCanvas.toDataURL('image/png');
+
+    // Optical flow calculate karo
+    let img1 = new Image();
+    let img2 = new Image();
+
+    img1.onload = function() {
+      img2.onload = function() {
+        canvas.width = camWidth;
+        canvas.height = camHeight;
+
+        ctx.drawImage(img1, 0, 0);
+        let frame1 = ctx.getImageData(0, 0, camWidth, camHeight);
+
+        ctx.drawImage(img2, 0, 0);
+        let frame2 = ctx.getImageData(0, 0, camWidth, camHeight);
+
+        let mat1 = cv.matFromImageData(frame1);
+        let mat2 = cv.matFromImageData(frame2);
+
+        let gray1 = new cv.Mat();
+        let gray2 = new cv.Mat();
+        cv.cvtColor(mat1, gray1, cv.COLOR_RGBA2GRAY);
+        cv.cvtColor(mat2, gray2, cv.COLOR_RGBA2GRAY);
+
+        let flow = new cv.Mat();
+        cv.calcOpticalFlowFarneback(
+          gray1, gray2, flow,
+          0.5, levels, windowSize, 3, 5, 1.2, 0
+        );
+
+        visualizeFlow(flow);
+
+        // Download buttons dikhao
+        document.getElementById('burstDownloads').style.display = 'flex';
+        document.getElementById('burstBtn').innerText = "📸 Capture Burst";
+        document.getElementById('burstBtn').disabled = false;
+
+        mat1.delete(); mat2.delete();
+        gray1.delete(); gray2.delete();
+        flow.delete();
+      };
+      img2.src = burstImg2;
+    };
+    img1.src = burstImg1;
+  }, 500);
+});
+
+document.getElementById('downloadImg1').addEventListener('click', function() {
+  let link = document.createElement('a');
+  link.download = 'burst_image1.png';
+  link.href = burstImg1;
+  link.click();
+});
+
+document.getElementById('downloadImg2').addEventListener('click', function() {
+  let link = document.createElement('a');
+  link.download = 'burst_image2.png';
+  link.href = burstImg2;
+  link.click();
+});
+
+document.getElementById('downloadFlow').addEventListener('click', function() {
+  let link = document.createElement('a');
+  link.download = 'burst_flow_result.png';
+  link.href = canvas.toDataURL();
+  link.click();
 });
 
 function onOpenCvReady() {
@@ -27,7 +194,12 @@ function onOpenCvReady() {
 }
 
 function startWebcam() {
-  navigator.mediaDevices.getUserMedia({ video: true })
+  if (video.srcObject) {
+    video.srcObject.getTracks().forEach(track => track.stop());
+  }
+  navigator.mediaDevices.getUserMedia({
+    video: { width: camWidth, height: camHeight }
+  })
     .then(function(stream) {
       video.srcObject = stream;
       console.log("Webcam working!");
@@ -39,11 +211,12 @@ function startWebcam() {
 }
 
 function captureFrames() {
-  setInterval(function() {
-    ctx.drawImage(video, 0, 0, 640, 480);
-    let currentFrame = ctx.getImageData(0, 0, 640, 480);
+  if (intervalId) clearInterval(intervalId);
 
-    // Use reference frame if captured, otherwise use previous frame
+  intervalId = setInterval(function() {
+    ctx.drawImage(video, 0, 0, camWidth, camHeight);
+    let currentFrame = ctx.getImageData(0, 0, camWidth, camHeight);
+
     let baseFrame = referenceFrame != null ? referenceFrame : prevFrame;
 
     if (baseFrame != null) {
@@ -58,7 +231,7 @@ function captureFrames() {
       let flow = new cv.Mat();
       cv.calcOpticalFlowFarneback(
         prevGray, currGray, flow,
-        0.5, 3, 15, 3, 5, 1.2, 0
+        0.5, levels, windowSize, 3, 5, 1.2, 0
       );
 
       visualizeFlow(flow);
@@ -79,8 +252,6 @@ function updateFPS() {
   frameCount++;
   let now = performance.now();
   let elapsed = now - lastTime;
-
-  // Update FPS every second
   if (elapsed >= 1000) {
     let fps = Math.round((frameCount * 1000) / elapsed);
     document.getElementById('fps').innerText = "FPS: " + fps;
