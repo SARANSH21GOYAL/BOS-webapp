@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BOS Background Pattern</title>
+  <style>
+    body {
+      background: white;
+      margin: 0;
+      padding: 0;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="patternCanvas"></canvas>
+  <script>
+    let canvas = document.getElementById('patternCanvas');
+    let ctx = canvas.getContext('2d');
+
+    // A4 size at 96 DPI
+    canvas.width = 794;
+    canvas.height = 1123;
+
+    // White background
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw dots
+    ctx.fillStyle = 'black';
+    let spacing = 20; // dots ke beech distance
+    let dotSize = 3;  // dot ka size
+
+    for (let x = spacing; x < canvas.width; x += spacing) {
+      for (let y = spacing; y < canvas.height; y += spacing) {
+        ctx.beginPath();
+        ctx.arc(x, y, dotSize, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  </script>
+</body>
+</html>
