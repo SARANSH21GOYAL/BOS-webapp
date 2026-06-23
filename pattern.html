@@ -27,17 +27,18 @@
     ctx.fillStyle = 'white';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw dots
+    // Random dense dots
     ctx.fillStyle = 'black';
-    let spacing = 20; // dots ke beech distance
-    let dotSize = 3;  // dot ka size
-
-    for (let x = spacing; x < canvas.width; x += spacing) {
-      for (let y = spacing; y < canvas.height; y += spacing) {
-        ctx.beginPath();
-        ctx.arc(x, y, dotSize, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    
+    // 2000 random dots — dense aur random
+    for (let i = 0; i < 2000; i++) {
+      let x = Math.random() * canvas.width;
+      let y = Math.random() * canvas.height;
+      let size = Math.random() * 3 + 1; // 1-4px random size
+      
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
     }
   </script>
 </body>
