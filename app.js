@@ -256,16 +256,39 @@ function startWebcam() {
   if (video.srcObject) {
     video.srcObject.getTracks().forEach(track => track.stop());
   }
-  navigator.mediaDevices.getUserMedia({
-    video: { width: camWidth, height: camHeight }
-  })
+  
+  let constraints = {
+    video: {
+      facingMode: { exact: currentCamera },
+      width: camWidth,
+      height: camHeight
+    }
+  };
+
+  navigator.mediaDevices.getUserMedia(constraints)
     .then(function(stream) {
       video.srcObject = stream;
-      console.log("Webcam working!");
+      console.log("Webcam working! Camera: " + currentCamera);
       setTimeout(captureFrames, 1000);
     })
     .catch(function(error) {
-      console.log("Webcam error: " + error);
+      console.log("Camera switch error: " + error);
+      // Fallback — try without exact
+      navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: currentCamera,
+          width: camWidth,
+          height: camHeight
+        }
+      })
+      .then(function(stream) {
+        video.srcObject = stream;
+        console.log("Webcam working fallback!");
+        setTimeout(captureFrames, 1000);
+      })
+      .catch(function(err) {
+        console.log("Webcam error: " + err);
+      });
     });
 }
 
