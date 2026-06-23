@@ -51,6 +51,40 @@ h1 {
   background-color: #00ff88;
 }
 
+#pauseBtn {
+  background-color: #1a1a2e;
+  color: #00e5ff;
+  border: 2px solid #00e5ff;
+  padding: 12px 30px;
+  font-size: 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+#pauseBtn:hover {
+  background-color: #00e5ff;
+  color: #0a0a0a;
+}
+
+#switchBtn {
+  background-color: #1a1a2e;
+  color: #00e5ff;
+  border: 2px solid #00e5ff;
+  padding: 12px 30px;
+  font-size: 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+#switchBtn:hover {
+  background-color: #00e5ff;
+  color: #0a0a0a;
+}
+
 #controls {
   display: flex;
   flex-direction: column;
