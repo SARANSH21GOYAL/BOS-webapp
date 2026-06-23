@@ -21,6 +21,8 @@
     <h1>BOS Microscopy Web App</h1>
     <p id="fps">FPS: 0</p>
     <button id="captureBtn">Capture Reference Frame</button>
+    <button id="pauseBtn">⏸️ Pause Feed</button>
+    <button id="switchBtn">📷 Switch to Back Camera</button>
     <div id="controls">
       <div class="slider-group">
         <label>Levels: <span id="levelsVal">3</span></label>
@@ -54,6 +56,7 @@
       </div>
       <button id="processBtn">Calculate Optical Flow</button>
       <button id="downloadBtn" style="display:none">Download Result ⬇️</button>
+      <button id="resumeBtn" style="display:none">▶️ Resume Live Feed</button>
     </div>
     
     <div id="burstSection">
