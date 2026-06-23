@@ -22,6 +22,44 @@ document.getElementById('captureBtn').addEventListener('click', function() {
   }
 });
 
+let isPaused = false;
+
+let currentCamera = 'user'; // user = front, environment = back
+
+document.getElementById('switchBtn').addEventListener('click', function() {
+  if (currentCamera === 'user') {
+    currentCamera = 'environment';
+    this.innerText = '🤳 Switch to Front Camera';
+  } else {
+    currentCamera = 'user';
+    this.innerText = '📷 Switch to Back Camera';
+  }
+  prevFrame = null;
+  referenceFrame = null;
+  startWebcam();
+});
+
+document.getElementById('pauseBtn').addEventListener('click', function() {
+  if (!isPaused) {
+    // Stop interval
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+    // Camera stopped — resource free
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach(track => track.stop());
+    }
+    isPaused = true;
+    this.innerText = "▶️ Resume Feed";
+  } else {
+    // Camera wapas shuru karo
+    isPaused = false;
+    this.innerText = "⏸️ Pause Feed";
+    startWebcam();
+  }
+});
+
 document.getElementById('levelsSlider').addEventListener('input', function() {
   levels = parseInt(this.value);
   document.getElementById('levelsVal').innerText = this.value;
@@ -50,8 +88,13 @@ document.getElementById('processBtn').addEventListener('click', function() {
   let flowFile = document.getElementById('flowImage').files[0];
 
   if (!refFile || !flowFile) {
-    alert('Dono images select karo!');
+    alert('Please select both images!');
     return;
+  }
+
+  // Size check — 2MB limit
+  if (refFile.size > 2 * 1024 * 1024 || flowFile.size > 2 * 1024 * 1024) {
+    alert('Warning: Image size is over 2MB. This may slow down processing or crash on mobile.');
   }
 
   let img1 = new Image();
@@ -59,6 +102,12 @@ document.getElementById('processBtn').addEventListener('click', function() {
 
   img1.onload = function() {
     img2.onload = function() {
+
+      // Resolution check
+      if (img1.width !== img2.width || img1.height !== img2.height) {
+        alert('Warning: Both images have different resolutions!\nImage 1: ' + img1.width + 'x' + img1.height + '\nImage 2: ' + img2.width + 'x' + img2.height + '\nResults may be incorrect!');
+      }
+
       canvas.width = img1.width;
       canvas.height = img1.height;
 
@@ -85,6 +134,14 @@ document.getElementById('processBtn').addEventListener('click', function() {
       visualizeFlow(flow);
       document.getElementById('downloadBtn').style.display = 'inline-block';
 
+      // Freeze live feed
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+
+      document.getElementById('resumeBtn').style.display = 'inline-block';
+
       mat1.delete(); mat2.delete();
       gray1.delete(); gray2.delete();
       flow.delete();
@@ -101,6 +158,12 @@ document.getElementById('downloadBtn').addEventListener('click', function() {
   link.click();
 });
 
+document.getElementById('resumeBtn').addEventListener('click', function() {
+  document.getElementById('resumeBtn').style.display = 'none';
+  document.getElementById('downloadBtn').style.display = 'none';
+  captureFrames();
+});
+
 let burstImg1 = null;
 let burstImg2 = null;
 
@@ -108,7 +171,6 @@ document.getElementById('burstBtn').addEventListener('click', function() {
   this.innerText = "Capturing...";
   this.disabled = true;
 
-  // Pehli image lo
   let tempCanvas = document.createElement('canvas');
   tempCanvas.width = camWidth;
   tempCanvas.height = camHeight;
@@ -116,12 +178,10 @@ document.getElementById('burstBtn').addEventListener('click', function() {
   tempCtx.drawImage(video, 0, 0, camWidth, camHeight);
   burstImg1 = tempCanvas.toDataURL('image/png');
 
-  // 500ms baad doosri image lo
   setTimeout(function() {
     tempCtx.drawImage(video, 0, 0, camWidth, camHeight);
     burstImg2 = tempCanvas.toDataURL('image/png');
 
-    // Optical flow calculate karo
     let img1 = new Image();
     let img2 = new Image();
 
@@ -152,7 +212,6 @@ document.getElementById('burstBtn').addEventListener('click', function() {
 
         visualizeFlow(flow);
 
-        // Download buttons dikhao
         document.getElementById('burstDownloads').style.display = 'flex';
         document.getElementById('burstBtn').innerText = "📸 Capture Burst";
         document.getElementById('burstBtn').disabled = false;
