@@ -353,7 +353,7 @@ function captureFrames() {
     }
 
     prevFrame = currentFrame;
-  }, 100);
+  }, 50);
 }
 
 function updateFPS() {
