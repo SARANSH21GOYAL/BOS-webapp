@@ -39,6 +39,32 @@ document.getElementById('switchBtn').addEventListener('click', function() {
   startWebcam();
 });
 
+let flashOn = false;
+
+document.getElementById('flashBtn').addEventListener('click', async function() {
+  let track = video.srcObject && video.srcObject.getVideoTracks()[0];
+  
+  if (!track) {
+    alert('Camera not available!');
+    return;
+  }
+
+  let capabilities = track.getCapabilities();
+  
+  if (!capabilities.torch) {
+    alert('Flash not supported on this device/camera!');
+    return;
+  }
+
+  flashOn = !flashOn;
+
+  await track.applyConstraints({
+    advanced: [{ torch: flashOn }]
+  });
+
+  this.innerText = flashOn ? '🔦 Flash ON' : '🔦 Flash OFF';
+});
+
 document.getElementById('pauseBtn').addEventListener('click', function() {
   if (!isPaused) {
     // Stop interval
