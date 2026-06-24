@@ -223,7 +223,7 @@ document.getElementById('burstBtn').addEventListener('click', function() {
       img2.src = burstImg2;
     };
     img1.src = burstImg1;
-  }, 500);
+  }, 0);
 });
 
 document.getElementById('downloadImg1').addEventListener('click', function() {
