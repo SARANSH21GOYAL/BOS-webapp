@@ -273,6 +273,74 @@ document.getElementById('downloadFlow').addEventListener('click', function() {
   link.click();
 });
 
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordingTimer = null;
+let recordingSeconds = 0;
+
+document.getElementById('recordBtn').addEventListener('click', function() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    // Stop recording
+    mediaRecorder.stop();
+    clearInterval(recordingTimer);
+    this.innerText = '🔴 Start Recording';
+    document.getElementById('recordTimer').innerText = '00:00';
+  } else {
+    // Warning if high resolution
+    if (camWidth > 320) {
+      alert('Warning: High resolution may cause lag or crash during recording. Recommended: 320x240 or lower.');
+    }
+
+    // Start recording canvas
+    recordedChunks = [];
+    recordingSeconds = 0;
+    document.getElementById('downloadRecordBtn').style.display = 'none';
+
+    let stream = canvas.captureStream(10); // 10 FPS
+    mediaRecorder = new MediaRecorder(stream, {
+      mimeType: 'video/webm'
+    });
+
+    mediaRecorder.ondataavailable = function(e) {
+      if (e.data.size > 0) {
+        recordedChunks.push(e.data);
+      }
+    };
+
+    mediaRecorder.onstop = function() {
+      let blob = new Blob(recordedChunks, { type: 'video/webm' });
+      let url = URL.createObjectURL(blob);
+      let downloadBtn = document.getElementById('downloadRecordBtn');
+      downloadBtn.style.display = 'inline-block';
+      downloadBtn.onclick = function() {
+        let link = document.createElement('a');
+        link.download = 'bos_flow_recording.webm';
+        link.href = url;
+        link.click();
+      };
+    };
+
+    mediaRecorder.start();
+    this.innerText = '⏹️ Stop Recording';
+
+    // Timer + 30 sec auto stop
+    recordingTimer = setInterval(function() {
+      recordingSeconds++;
+      let mins = Math.floor(recordingSeconds / 60).toString().padStart(2, '0');
+      let secs = (recordingSeconds % 60).toString().padStart(2, '0');
+      document.getElementById('recordTimer').innerText = mins + ':' + secs;
+
+      // Auto stop at 30 seconds
+      if (recordingSeconds >= 30) {
+        mediaRecorder.stop();
+        clearInterval(recordingTimer);
+        document.getElementById('recordBtn').innerText = '🔴 Start Recording';
+        document.getElementById('recordTimer').innerText = '00:00';
+      }
+    }, 1000);
+  }
+});
+
 function onOpenCvReady() {
   console.log("OpenCV Ready!");
   startWebcam();
