@@ -311,7 +311,28 @@ document.getElementById('recordBtn').addEventListener('click', function() {
     recordingSeconds = 0;
     document.getElementById('downloadRecordBtn').style.display = 'none';
 
-    canvas.captureStream()  // No fix number {initially, it was 10, but due to a metadata issue with the feed's actual fps, I removed it}
+    // ============================================
+    // VIDEO RECORDING - Canvas Stream Capture
+    // ============================================
+    // 
+    // IMPORTANT: captureStream() called WITHOUT a fixed FPS number
+    // 
+    // WHY: Originally used canvas.captureStream(10) to force 10 FPS recording.
+    // PROBLEM: Live feed processing runs at variable rate (~18-20 FPS depending 
+    // on device/resolution/parameters). When recording was forced to 10 FPS,
+    // there was a mismatch between actual canvas update rate and recording rate.
+    // This caused corrupted video metadata (e.g., FPS showing as 1000, frame 
+    // count showing as 40,000+ for a 10 second recording).
+    //
+    // FIX: Removed the fixed number. captureStream() now follows the canvas's
+    // natural update rate (whatever visualizeFlow() actually achieves).
+    // This keeps recording in sync with live feed — no more metadata corruption.
+    //
+    // If recording quality/smoothness issues come up again, check this first
+    // before changing back to a fixed FPS value.
+    // ============================================
+
+    let stream = canvas.captureStream();
     mediaRecorder = new MediaRecorder(stream, {
       mimeType: 'video/webm'
     });
