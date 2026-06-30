@@ -311,7 +311,7 @@ document.getElementById('recordBtn').addEventListener('click', function() {
     recordingSeconds = 0;
     document.getElementById('downloadRecordBtn').style.display = 'none';
 
-    let stream = canvas.captureStream(10); // 10 FPS
+    canvas.captureStream()  // No fix number {initially, it was 10, but due to a metadata issue with the feed's actual fps, I removed it}
     mediaRecorder = new MediaRecorder(stream, {
       mimeType: 'video/webm'
     });
