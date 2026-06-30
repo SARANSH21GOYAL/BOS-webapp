@@ -1,3 +1,4 @@
+let useGrayscale = false;
 let intervalId = null;
 let camWidth = 640;
 let camHeight = 480;
@@ -35,6 +36,11 @@ document.getElementById('viewToggleBtn').addEventListener('click', function() {
     canvas.style.display = 'block';
     this.innerText = '🔄 Show Original Feed';
   }
+});
+
+document.getElementById('colorModeBtn').addEventListener('click', function() {
+  useGrayscale = !useGrayscale;
+  this.innerText = useGrayscale ? '🌈 Switch to Colored' : '⚫ Switch to Grayscale';
 });
 
 let isPaused = false;
@@ -497,11 +503,21 @@ function visualizeFlow(flow) {
   hsvChannels.push_back(val);
   cv.merge(hsvChannels, hsv);
 
-  let hsv8 = new cv.Mat();
-  hsv.convertTo(hsv8, cv.CV_8U);
-  let rgb = new cv.Mat();
-  cv.cvtColor(hsv8, rgb, cv.COLOR_HSV2RGB);
-  cv.imshow('output', rgb);
+  let outputImg = new cv.Mat();
+
+  if (useGrayscale) {
+    // Sirf magnitude dikhao — black & white
+    magNorm.convertTo(outputImg, cv.CV_8U);
+  } else {
+    // Colored HSV dikhao
+    let hsv8 = new cv.Mat();
+    hsv.convertTo(hsv8, cv.CV_8U);
+    cv.cvtColor(hsv8, outputImg, cv.COLOR_HSV2RGB);
+    hsv8.delete();
+  }
+
+cv.imshow('output', outputImg);
+outputImg.delete();
 
   flowX.delete(); flowY.delete();
   magnitude.delete(); angle.delete();
