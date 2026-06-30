@@ -4,6 +4,7 @@ let camHeight = 480;
 let levels = 3;
 let windowSize = 15;
 let video = document.getElementById('webcam');
+let showOriginal = false;
 let canvas = document.getElementById('output');
 let ctx = canvas.getContext('2d', { willReadFrequently: true });
 let prevFrame = null;
@@ -19,6 +20,20 @@ document.getElementById('captureBtn').addEventListener('click', function() {
   } else {
     referenceFrame = null;
     this.innerText = "Capture Reference Frame";
+  }
+});
+
+document.getElementById('viewToggleBtn').addEventListener('click', function() {
+  showOriginal = !showOriginal;
+  
+  if (showOriginal) {
+    video.style.display = 'block';
+    canvas.style.display = 'none';
+    this.innerText = '🔄 Show BOS Feed';
+  } else {
+    video.style.display = 'none';
+    canvas.style.display = 'block';
+    this.innerText = '🔄 Show Original Feed';
   }
 });
 
