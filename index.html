@@ -21,6 +21,7 @@
     <h1>BOS Microscopy Web App</h1>
     <p id="fps">FPS: 0</p>
     <button id="captureBtn">Capture Reference Frame</button>
+    <button id="viewToggleBtn">🔄 Show Original Feed</button>
     <button id="pauseBtn">⏸️ Pause Feed</button>
     <button id="switchBtn">📷 Switch to Back Camera</button>
     <button id="flashBtn">🔦 Flash OFF</button>
@@ -36,8 +37,8 @@
       <div class="slider-group">
         <label>Resolution: <span id="resVal">640x480</span></label>
         <select id="resSelect">
-          <option value="640x480">640x480 (Default)</option>
-          <option value="480x360">480x360 (Medium)</option>
+          <option value="1280x720">1280x720 (HD)</option>
+          <option value="640x480" selected>640x480 (Default)</option>
           <option value="320x240">320x240 (Fast)</option>
           <option value="160x120">160x120 (Fastest)</option>
         </select>
