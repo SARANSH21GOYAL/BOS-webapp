@@ -1,4 +1,4 @@
-let useGrayscale = false;
+let colorMode = 'hsv'; // 'hsv' | 'grayscale' | 'viridis' | 'magma'
 let intervalId = null;
 let camWidth = 640;
 let camHeight = 480;
@@ -10,6 +10,12 @@ let canvas = document.getElementById('output');
 let ctx = canvas.getContext('2d', { willReadFrequently: true });
 let prevFrame = null;
 let referenceFrame = null;
+
+// ROI variables
+let roi = null; // {x, y, w, h}
+let isDrawing = false;
+let startX = 0;
+let startY = 0;
 
 let frameCount = 0;
 let lastTime = performance.now();
@@ -38,10 +44,89 @@ document.getElementById('viewToggleBtn').addEventListener('click', function() {
   }
 });
 
-document.getElementById('colorModeBtn').addEventListener('click', function() {
-  useGrayscale = !useGrayscale;
-  this.innerText = useGrayscale ? '🌈 Switch to Colored' : '⚫ Switch to Grayscale';
+document.getElementById('colorModeSelect').addEventListener('change', function() {
+  colorMode = this.value; // 'hsv' | 'grayscale' | 'viridis' | 'magma'
 });
+
+// ROI drawing on canvas
+canvas.addEventListener('mousedown', function(e) {
+  let rect = canvas.getBoundingClientRect();
+  let scaleX = camWidth / rect.width;
+  let scaleY = camHeight / rect.height;
+  startX = (e.clientX - rect.left) * scaleX;
+  startY = (e.clientY - rect.top) * scaleY;
+  isDrawing = true;
+  roi = null;
+});
+
+canvas.addEventListener('mousemove', function(e) {
+  if (!isDrawing) return;
+  let rect = canvas.getBoundingClientRect();
+  let scaleX = camWidth / rect.width;
+  let scaleY = camHeight / rect.height;
+  let currentX = (e.clientX - rect.left) * scaleX;
+  let currentY = (e.clientY - rect.top) * scaleY;
+  roi = clampRoi({
+    x: Math.min(startX, currentX),
+    y: Math.min(startY, currentY),
+    w: Math.abs(currentX - startX),
+    h: Math.abs(currentY - startY)
+  });
+});
+
+canvas.addEventListener('mouseup', function() {
+  isDrawing = false;
+  if (roi && (roi.w < 20 || roi.h < 20)) {
+    roi = null;
+  }
+});
+
+// Touch support for mobile
+canvas.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  let rect = canvas.getBoundingClientRect();
+  let scaleX = camWidth / rect.width;
+  let scaleY = camHeight / rect.height;
+  let touch = e.touches[0];
+  startX = (touch.clientX - rect.left) * scaleX;
+  startY = (touch.clientY - rect.top) * scaleY;
+  isDrawing = true;
+  roi = null;
+});
+
+canvas.addEventListener('touchmove', function(e) {
+  e.preventDefault();
+  if (!isDrawing) return;
+  let rect = canvas.getBoundingClientRect();
+  let scaleX = camWidth / rect.width;
+  let scaleY = camHeight / rect.height;
+  let touch = e.touches[0];
+  let currentX = (touch.clientX - rect.left) * scaleX;
+  let currentY = (touch.clientY - rect.top) * scaleY;
+  roi = clampRoi({
+    x: Math.min(startX, currentX),
+    y: Math.min(startY, currentY),
+    w: Math.abs(currentX - startX),
+    h: Math.abs(currentY - startY)
+  });
+});
+
+canvas.addEventListener('touchend', function() {
+  isDrawing = false;
+  if (roi && (roi.w < 20 || roi.h < 20)) {
+    roi = null;
+  }
+});
+
+// Keeps the ROI box fully inside the current frame bounds so cv.Mat.roi()
+// never receives an out-of-bounds rect (which throws an OpenCV assertion error)
+function clampRoi(r) {
+  let x = Math.max(0, Math.min(r.x, camWidth - 1));
+  let y = Math.max(0, Math.min(r.y, camHeight - 1));
+  let w = Math.min(r.w, camWidth - x);
+  let h = Math.min(r.h, camHeight - y);
+  return { x, y, w, h };
+}
 
 let isPaused = false;
 
@@ -88,19 +173,16 @@ document.getElementById('flashBtn').addEventListener('click', async function() {
 
 document.getElementById('pauseBtn').addEventListener('click', function() {
   if (!isPaused) {
-    // Stop interval
     if (intervalId) {
       clearInterval(intervalId);
       intervalId = null;
     }
-    // Camera stopped — resource free
     if (video.srcObject) {
       video.srcObject.getTracks().forEach(track => track.stop());
     }
     isPaused = true;
     this.innerText = "▶️ Resume Feed";
   } else {
-    // Camera wapas shuru karo
     isPaused = false;
     this.innerText = "⏸️ Pause Feed";
     startWebcam();
@@ -124,8 +206,11 @@ document.getElementById('resSelect').addEventListener('change', function() {
   document.getElementById('resVal').innerText = this.value;
   canvas.width = camWidth;
   canvas.height = camHeight;
+  video.width = camWidth;
+  video.height = camHeight;
   prevFrame = null;
   referenceFrame = null;
+  roi = null;
   document.getElementById('captureBtn').innerText = "Capture Reference Frame";
   startWebcam();
 });
@@ -139,7 +224,6 @@ document.getElementById('processBtn').addEventListener('click', function() {
     return;
   }
 
-  // Size check — 2MB limit
   if (refFile.size > 2 * 1024 * 1024 || flowFile.size > 2 * 1024 * 1024) {
     alert('Warning: Image size is over 2MB. This may slow down processing or crash on mobile.');
   }
@@ -150,7 +234,6 @@ document.getElementById('processBtn').addEventListener('click', function() {
   img1.onload = function() {
     img2.onload = function() {
 
-      // Resolution check
       if (img1.width !== img2.width || img1.height !== img2.height) {
         alert('Warning: Both images have different resolutions!\nImage 1: ' + img1.width + 'x' + img1.height + '\nImage 2: ' + img2.width + 'x' + img2.height + '\nResults may be incorrect!');
       }
@@ -181,7 +264,6 @@ document.getElementById('processBtn').addEventListener('click', function() {
       visualizeFlow(flow);
       document.getElementById('downloadBtn').style.display = 'inline-block';
 
-      // Freeze live feed
       if (intervalId) {
         clearInterval(intervalId);
         intervalId = null;
@@ -301,42 +383,18 @@ let recordingSeconds = 0;
 
 document.getElementById('recordBtn').addEventListener('click', function() {
   if (mediaRecorder && mediaRecorder.state === 'recording') {
-    // Stop recording
     mediaRecorder.stop();
     clearInterval(recordingTimer);
     this.innerText = '🔴 Start Recording';
     document.getElementById('recordTimer').innerText = '00:00';
   } else {
-    // Warning if high resolution
     if (camWidth > 320) {
       alert('Warning: High resolution may cause lag or crash during recording. Recommended: 320x240 or lower.');
     }
 
-    // Start recording canvas
     recordedChunks = [];
     recordingSeconds = 0;
     document.getElementById('downloadRecordBtn').style.display = 'none';
-
-    // ============================================
-    // VIDEO RECORDING - Canvas Stream Capture
-    // ============================================
-    // 
-    // IMPORTANT: captureStream() called WITHOUT a fixed FPS number
-    // 
-    // WHY: Originally used canvas.captureStream(10) to force 10 FPS recording.
-    // PROBLEM: Live feed processing runs at variable rate (~18-20 FPS depending 
-    // on device/resolution/parameters). When recording was forced to 10 FPS,
-    // there was a mismatch between actual canvas update rate and recording rate.
-    // This caused corrupted video metadata (e.g., FPS showing as 1000, frame 
-    // count showing as 40,000+ for a 10 second recording).
-    //
-    // FIX: Removed the fixed number. captureStream() now follows the canvas's
-    // natural update rate (whatever visualizeFlow() actually achieves).
-    // This keeps recording in sync with live feed — no more metadata corruption.
-    //
-    // If recording quality/smoothness issues come up again, check this first
-    // before changing back to a fixed FPS value.
-    // ============================================
 
     let stream = canvas.captureStream();
     mediaRecorder = new MediaRecorder(stream, {
@@ -365,14 +423,12 @@ document.getElementById('recordBtn').addEventListener('click', function() {
     mediaRecorder.start();
     this.innerText = '⏹️ Stop Recording';
 
-    // Timer + 30 sec auto stop
     recordingTimer = setInterval(function() {
       recordingSeconds++;
       let mins = Math.floor(recordingSeconds / 60).toString().padStart(2, '0');
       let secs = (recordingSeconds % 60).toString().padStart(2, '0');
       document.getElementById('recordTimer').innerText = mins + ':' + secs;
 
-      // Auto stop at 30 seconds
       if (recordingSeconds >= 30) {
         mediaRecorder.stop();
         clearInterval(recordingTimer);
@@ -409,7 +465,6 @@ function startWebcam() {
     })
     .catch(function(error) {
       console.log("Camera switch error: " + error);
-      // Fallback — try without exact
       navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: currentCamera,
@@ -446,20 +501,54 @@ function captureFrames() {
       cv.cvtColor(prev, prevGray, cv.COLOR_RGBA2GRAY);
       cv.cvtColor(curr, currGray, cv.COLOR_RGBA2GRAY);
 
-      let flow = new cv.Mat();
-      cv.calcOpticalFlowFarneback(
-        prevGray, currGray, flow,
-        0.5, levels, windowSize, 3, 5, 1.2, 0
-      );
+      // ROI — To process only selected area
+      if (roi && roi.w > 20 && roi.h > 20) {
+        let roiRect = new cv.Rect(
+          Math.floor(roi.x), Math.floor(roi.y),
+          Math.floor(roi.w), Math.floor(roi.h)
+        );
 
-      visualizeFlow(flow);
-      updateFPS();
+        let prevRoi = prevGray.roi(roiRect);
+        let currRoi = currGray.roi(roiRect);
+
+        let flow = new cv.Mat();
+        cv.calcOpticalFlowFarneback(
+          prevRoi, currRoi, flow,
+          0.5, levels, windowSize, 3, 5, 1.2, 0
+        );
+
+        // Only show flow on ROI area, black canvas elsewhere
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, camWidth, camHeight);
+
+        // Draw ROI box outline
+        ctx.strokeStyle = '#00e5ff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
+
+        visualizeFlowInROI(flow, roi);
+        updateFPS();
+
+        prevRoi.delete();
+        currRoi.delete();
+        flow.delete();
+      } else {
+        // No ROI — process full frame
+        let flow = new cv.Mat();
+        cv.calcOpticalFlowFarneback(
+          prevGray, currGray, flow,
+          0.5, levels, windowSize, 3, 5, 1.2, 0
+        );
+
+        visualizeFlow(flow);
+        updateFPS();
+        flow.delete();
+      }
 
       prev.delete();
       curr.delete();
       prevGray.delete();
       currGray.delete();
-      flow.delete();
     }
 
     prevFrame = currentFrame;
@@ -478,6 +567,36 @@ function updateFPS() {
   }
 }
 
+// Converts a normalized (0-255) CV_32F magnitude map into an RGB CV_8UC3 Mat
+// using the currently selected colorMode. Caller owns and must delete the
+// returned Mat. Only used for the non-'hsv' modes (grayscale/viridis/magma),
+// since those only encode magnitude and ignore flow direction.
+function magnitudeToColorRGB(magNorm) {
+  let outputImg = new cv.Mat();
+
+  if (colorMode === 'grayscale') {
+    magNorm.convertTo(outputImg, cv.CV_8U);
+    return outputImg;
+  }
+
+  // viridis / magma
+  let gray8 = new cv.Mat();
+  magNorm.convertTo(gray8, cv.CV_8U);
+
+  let colored = new cv.Mat();
+  let cmap = (colorMode === 'viridis') ? cv.COLORMAP_VIRIDIS : cv.COLORMAP_MAGMA;
+  cv.applyColorMap(gray8, colored, cmap);
+
+  // OpenCV colormaps output BGR order — cv.imshow() in opencv.js expects RGB,
+  // so this conversion is required or the colors come out channel-swapped.
+  cv.cvtColor(colored, outputImg, cv.COLOR_BGR2RGB);
+
+  gray8.delete();
+  colored.delete();
+  return outputImg;
+}
+
+// Renders optical flow for the full frame onto the main output canvas
 function visualizeFlow(flow) {
   let flowChannels = new cv.MatVector();
   cv.split(flow, flowChannels);
@@ -491,39 +610,87 @@ function visualizeFlow(flow) {
   let magNorm = new cv.Mat();
   cv.normalize(magnitude, magNorm, 0, 255, cv.NORM_MINMAX);
 
-  let hsv = new cv.Mat();
-  let hsvChannels = new cv.MatVector();
+  let outputImg;
 
-  let hue = angle;
-  let sat = new cv.Mat(flow.rows, flow.cols, cv.CV_32F, new cv.Scalar(255));
-  let val = magNorm;
+  if (colorMode === 'hsv') {
+    // Direction (angle) -> hue, magnitude -> value. Only mode that encodes flow direction.
+    let hsv = new cv.Mat();
+    let hsvChannels = new cv.MatVector();
+    let sat = new cv.Mat(flow.rows, flow.cols, cv.CV_32F, new cv.Scalar(255));
+    hsvChannels.push_back(angle);
+    hsvChannels.push_back(sat);
+    hsvChannels.push_back(magNorm);
+    cv.merge(hsvChannels, hsv);
 
-  hsvChannels.push_back(hue);
-  hsvChannels.push_back(sat);
-  hsvChannels.push_back(val);
-  cv.merge(hsvChannels, hsv);
-
-  let outputImg = new cv.Mat();
-
-  if (useGrayscale) {
-    // Sirf magnitude dikhao — black & white
-    magNorm.convertTo(outputImg, cv.CV_8U);
-  } else {
-    // Colored HSV dikhao
     let hsv8 = new cv.Mat();
     hsv.convertTo(hsv8, cv.CV_8U);
+    outputImg = new cv.Mat();
     cv.cvtColor(hsv8, outputImg, cv.COLOR_HSV2RGB);
+
     hsv8.delete();
+    hsv.delete();
+    sat.delete();
+    hsvChannels.delete();
+  } else {
+    outputImg = magnitudeToColorRGB(magNorm);
   }
 
-cv.imshow('output', outputImg);
-outputImg.delete();
+  cv.imshow('output', outputImg);
+  outputImg.delete();
 
   flowX.delete(); flowY.delete();
   magnitude.delete(); angle.delete();
-  magNorm.delete(); hsv.delete();
-  hsv8.delete(); rgb.delete();
-  sat.delete();
-  hsvChannels.delete();
+  magNorm.delete();
+  flowChannels.delete();
+}
+
+// Renders optical flow only within the selected ROI, drawn onto the canvas
+// at the ROI's position. Must live at the top level (NOT nested inside
+// visualizeFlow) so captureFrames() can actually call it.
+function visualizeFlowInROI(flow, roi) {
+  let flowChannels = new cv.MatVector();
+  cv.split(flow, flowChannels);
+  let flowX = flowChannels.get(0);
+  let flowY = flowChannels.get(1);
+
+  let magnitude = new cv.Mat();
+  let angle = new cv.Mat();
+  cv.cartToPolar(flowX, flowY, magnitude, angle, true);
+
+  let magNorm = new cv.Mat();
+  cv.normalize(magnitude, magNorm, 0, 255, cv.NORM_MINMAX);
+
+  let outputMat;
+
+  if (colorMode === 'hsv') {
+    let hsv = new cv.Mat();
+    let hsvChannels = new cv.MatVector();
+    let sat = new cv.Mat(flow.rows, flow.cols, cv.CV_32F, new cv.Scalar(255));
+    hsvChannels.push_back(angle);
+    hsvChannels.push_back(sat);
+    hsvChannels.push_back(magNorm);
+    cv.merge(hsvChannels, hsv);
+    let hsv8 = new cv.Mat();
+    hsv.convertTo(hsv8, cv.CV_8U);
+    outputMat = new cv.Mat();
+    cv.cvtColor(hsv8, outputMat, cv.COLOR_HSV2RGB);
+    hsv8.delete();
+    hsv.delete();
+    sat.delete();
+    hsvChannels.delete();
+  } else {
+    outputMat = magnitudeToColorRGB(magNorm);
+  }
+
+  let tempCanvas = document.createElement('canvas');
+  tempCanvas.width = Math.floor(roi.w);
+  tempCanvas.height = Math.floor(roi.h);
+  cv.imshow(tempCanvas, outputMat);
+
+  ctx.drawImage(tempCanvas, Math.floor(roi.x), Math.floor(roi.y));
+
+  flowX.delete(); flowY.delete();
+  magnitude.delete(); angle.delete();
+  magNorm.delete(); outputMat.delete();
   flowChannels.delete();
 }
