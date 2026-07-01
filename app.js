@@ -567,6 +567,73 @@ function updateFPS() {
   }
 }
 
+// Viridis and Magma colormaps implemented as manual RGB lookup tables,
+// interpolated from standard matplotlib control-point colors. This avoids
+// depending on cv.applyColorMap()/cv.COLORMAP_VIRIDIS/cv.COLORMAP_MAGMA,
+// which are part of the colormap module and are NOT present in every
+// opencv.js build — when missing, calling them throws before cv.imshow()
+// ever runs, which is why the canvas was stuck showing the raw camera feed.
+// cv.LUT() is a core function and is reliably available everywhere.
+
+const VIRIDIS_STOPS = [
+  [0.000, 68, 1, 84],
+  [0.125, 72, 40, 120],
+  [0.250, 62, 74, 137],
+  [0.375, 49, 104, 142],
+  [0.500, 38, 130, 142],
+  [0.625, 31, 158, 137],
+  [0.750, 53, 183, 121],
+  [0.875, 109, 205, 89],
+  [1.000, 253, 231, 37]
+];
+
+const MAGMA_STOPS = [
+  [0.000, 0, 0, 4],
+  [0.125, 28, 16, 68],
+  [0.250, 79, 18, 123],
+  [0.375, 129, 37, 129],
+  [0.500, 181, 54, 122],
+  [0.625, 229, 80, 100],
+  [0.750, 251, 135, 97],
+  [0.875, 254, 194, 135],
+  [1.000, 252, 253, 191]
+];
+
+function buildColormapLUT(stops) {
+  let lutData = new Uint8Array(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    let t = i / 255;
+    let idx = 0;
+    while (idx < stops.length - 2 && stops[idx + 1][0] < t) idx++;
+    let [t0, r0, g0, b0] = stops[idx];
+    let [t1, r1, g1, b1] = stops[idx + 1];
+    let localT = (t1 === t0) ? 0 : (t - t0) / (t1 - t0);
+    lutData[i * 3 + 0] = Math.round(r0 + (r1 - r0) * localT);
+    lutData[i * 3 + 1] = Math.round(g0 + (g1 - g0) * localT);
+    lutData[i * 3 + 2] = Math.round(b0 + (b1 - b0) * localT);
+  }
+  return lutData;
+}
+
+let viridisLUTMat = null;
+let magmaLUTMat = null;
+
+// LUT Mats are built once (lazily, after OpenCV is ready) and reused —
+// no need to rebuild them every frame.
+function getColormapLUTMat(mode) {
+  if (mode === 'viridis') {
+    if (!viridisLUTMat) {
+      viridisLUTMat = cv.matFromArray(1, 256, cv.CV_8UC3, buildColormapLUT(VIRIDIS_STOPS));
+    }
+    return viridisLUTMat;
+  } else {
+    if (!magmaLUTMat) {
+      magmaLUTMat = cv.matFromArray(1, 256, cv.CV_8UC3, buildColormapLUT(MAGMA_STOPS));
+    }
+    return magmaLUTMat;
+  }
+}
+
 // Converts a normalized (0-255) CV_32F magnitude map into an RGB CV_8UC3 Mat
 // using the currently selected colorMode. Caller owns and must delete the
 // returned Mat. Only used for the non-'hsv' modes (grayscale/viridis/magma),
@@ -579,20 +646,15 @@ function magnitudeToColorRGB(magNorm) {
     return outputImg;
   }
 
-  // viridis / magma
+  // viridis / magma — apply via LUT, already built in RGB order so no
+  // BGR2RGB conversion is needed afterward.
   let gray8 = new cv.Mat();
   magNorm.convertTo(gray8, cv.CV_8U);
 
-  let colored = new cv.Mat();
-  let cmap = (colorMode === 'viridis') ? cv.COLORMAP_VIRIDIS : cv.COLORMAP_MAGMA;
-  cv.applyColorMap(gray8, colored, cmap);
-
-  // OpenCV colormaps output BGR order — cv.imshow() in opencv.js expects RGB,
-  // so this conversion is required or the colors come out channel-swapped.
-  cv.cvtColor(colored, outputImg, cv.COLOR_BGR2RGB);
+  let lut = getColormapLUTMat(colorMode);
+  cv.LUT(gray8, lut, outputImg);
 
   gray8.delete();
-  colored.delete();
   return outputImg;
 }
 
