@@ -615,47 +615,42 @@ function buildColormapLUT(stops) {
   return lutData;
 }
 
-let viridisLUTMat = null;
-let magmaLUTMat = null;
+// Plain JS arrays — built once at load time. No cv.Mat, no cv.LUT,
+// no cv.applyColorMap. This is pure JavaScript with zero OpenCV
+// dependency, so it works regardless of which opencv.js build is loaded.
+const VIRIDIS_LUT = buildColormapLUT(VIRIDIS_STOPS);
+const MAGMA_LUT = buildColormapLUT(MAGMA_STOPS);
 
-// LUT Mats are built once (lazily, after OpenCV is ready) and reused —
-// no need to rebuild them every frame.
-function getColormapLUTMat(mode) {
-  if (mode === 'viridis') {
-    if (!viridisLUTMat) {
-      viridisLUTMat = cv.matFromArray(1, 256, cv.CV_8UC3, buildColormapLUT(VIRIDIS_STOPS));
-    }
-    return viridisLUTMat;
-  } else {
-    if (!magmaLUTMat) {
-      magmaLUTMat = cv.matFromArray(1, 256, cv.CV_8UC3, buildColormapLUT(MAGMA_STOPS));
-    }
-    return magmaLUTMat;
-  }
+function getColormapLUT(mode) {
+  return mode === 'viridis' ? VIRIDIS_LUT : MAGMA_LUT;
 }
 
-// Converts a normalized (0-255) CV_32F magnitude map into an RGB CV_8UC3 Mat
-// using the currently selected colorMode. Caller owns and must delete the
-// returned Mat. Only used for the non-'hsv' modes (grayscale/viridis/magma),
-// since those only encode magnitude and ignore flow direction.
-function magnitudeToColorRGB(magNorm) {
-  let outputImg = new cv.Mat();
+// Reads a normalized (0-255) CV_32F magnitude Mat's raw pixel data directly
+// (magNorm.data32F is a plain Float32Array view — a property access, not a
+// function call, so it can't be "missing" the way applyColorMap/LUT were)
+// and paints it onto the given canvas context via a manual colormap lookup
+// + putImageData. No OpenCV colormap/LUT function is used anywhere here.
+function renderMagnitudeColormap(magNorm, targetCtx, offsetX, offsetY) {
+  let cols = magNorm.cols;
+  let rows = magNorm.rows;
+  let src = magNorm.data32F;
+  let lut = getColormapLUT(colorMode);
 
-  if (colorMode === 'grayscale') {
-    magNorm.convertTo(outputImg, cv.CV_8U);
-    return outputImg;
+  let imgData = targetCtx.createImageData(cols, rows);
+  let out = imgData.data;
+
+  for (let i = 0, n = cols * rows; i < n; i++) {
+    let v = src[i];
+    let idx = v < 0 ? 0 : (v > 255 ? 255 : v | 0);
+    let lutIdx = idx * 3;
+    let outIdx = i * 4;
+    out[outIdx] = lut[lutIdx];
+    out[outIdx + 1] = lut[lutIdx + 1];
+    out[outIdx + 2] = lut[lutIdx + 2];
+    out[outIdx + 3] = 255;
   }
 
-  // viridis / magma — apply via LUT, already built in RGB order so no
-  // BGR2RGB conversion is needed afterward.
-  let gray8 = new cv.Mat();
-  magNorm.convertTo(gray8, cv.CV_8U);
-
-  let lut = getColormapLUTMat(colorMode);
-  cv.LUT(gray8, lut, outputImg);
-
-  gray8.delete();
-  return outputImg;
+  targetCtx.putImageData(imgData, offsetX || 0, offsetY || 0);
 }
 
 // Renders optical flow for the full frame onto the main output canvas
@@ -672,8 +667,6 @@ function visualizeFlow(flow) {
   let magNorm = new cv.Mat();
   cv.normalize(magnitude, magNorm, 0, 255, cv.NORM_MINMAX);
 
-  let outputImg;
-
   if (colorMode === 'hsv') {
     // Direction (angle) -> hue, magnitude -> value. Only mode that encodes flow direction.
     let hsv = new cv.Mat();
@@ -686,19 +679,24 @@ function visualizeFlow(flow) {
 
     let hsv8 = new cv.Mat();
     hsv.convertTo(hsv8, cv.CV_8U);
-    outputImg = new cv.Mat();
+    let outputImg = new cv.Mat();
     cv.cvtColor(hsv8, outputImg, cv.COLOR_HSV2RGB);
+    cv.imshow('output', outputImg);
+    outputImg.delete();
 
     hsv8.delete();
     hsv.delete();
     sat.delete();
     hsvChannels.delete();
+  } else if (colorMode === 'grayscale') {
+    let outputImg = new cv.Mat();
+    magNorm.convertTo(outputImg, cv.CV_8U);
+    cv.imshow('output', outputImg);
+    outputImg.delete();
   } else {
-    outputImg = magnitudeToColorRGB(magNorm);
+    // viridis / magma — pure JS/Canvas path, no OpenCV colormap functions
+    renderMagnitudeColormap(magNorm, ctx, 0, 0);
   }
-
-  cv.imshow('output', outputImg);
-  outputImg.delete();
 
   flowX.delete(); flowY.delete();
   magnitude.delete(); angle.delete();
@@ -722,7 +720,10 @@ function visualizeFlowInROI(flow, roi) {
   let magNorm = new cv.Mat();
   cv.normalize(magnitude, magNorm, 0, 255, cv.NORM_MINMAX);
 
-  let outputMat;
+  let tempCanvas = document.createElement('canvas');
+  tempCanvas.width = Math.floor(roi.w);
+  tempCanvas.height = Math.floor(roi.h);
+  let tempCtx = tempCanvas.getContext('2d');
 
   if (colorMode === 'hsv') {
     let hsv = new cv.Mat();
@@ -734,25 +735,27 @@ function visualizeFlowInROI(flow, roi) {
     cv.merge(hsvChannels, hsv);
     let hsv8 = new cv.Mat();
     hsv.convertTo(hsv8, cv.CV_8U);
-    outputMat = new cv.Mat();
+    let outputMat = new cv.Mat();
     cv.cvtColor(hsv8, outputMat, cv.COLOR_HSV2RGB);
+    cv.imshow(tempCanvas, outputMat);
+    outputMat.delete();
     hsv8.delete();
     hsv.delete();
     sat.delete();
     hsvChannels.delete();
+  } else if (colorMode === 'grayscale') {
+    let outputMat = new cv.Mat();
+    magNorm.convertTo(outputMat, cv.CV_8U);
+    cv.imshow(tempCanvas, outputMat);
+    outputMat.delete();
   } else {
-    outputMat = magnitudeToColorRGB(magNorm);
+    renderMagnitudeColormap(magNorm, tempCtx, 0, 0);
   }
-
-  let tempCanvas = document.createElement('canvas');
-  tempCanvas.width = Math.floor(roi.w);
-  tempCanvas.height = Math.floor(roi.h);
-  cv.imshow(tempCanvas, outputMat);
 
   ctx.drawImage(tempCanvas, Math.floor(roi.x), Math.floor(roi.y));
 
   flowX.delete(); flowY.delete();
   magnitude.delete(); angle.delete();
-  magNorm.delete(); outputMat.delete();
+  magNorm.delete();
   flowChannels.delete();
 }
