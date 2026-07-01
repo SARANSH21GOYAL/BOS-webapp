@@ -127,6 +127,14 @@ h1 {
   color: #0a0a0a;
 }
 
+#histEqLabel {
+  color: #00e5ff;
+  font-size: 14px;
+  margin-bottom: 20px;
+  display: inline-block;
+  cursor: pointer;
+}
+
 #flashBtn {
   background-color: #1a1a2e;
   color: #00e5ff;
