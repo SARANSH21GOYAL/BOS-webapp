@@ -48,6 +48,11 @@ document.getElementById('colorModeSelect').addEventListener('change', function()
   colorMode = this.value; // 'hsv' | 'grayscale' | 'viridis' | 'magma'
 });
 
+let useHistEq = false;
+document.getElementById('histEqCheckbox').addEventListener('change', function() {
+  useHistEq = this.checked;
+});
+
 // ROI drawing on canvas
 canvas.addEventListener('mousedown', function(e) {
   let rect = canvas.getBoundingClientRect();
@@ -625,24 +630,35 @@ function getColormapLUT(mode) {
   return mode === 'viridis' ? VIRIDIS_LUT : MAGMA_LUT;
 }
 
-// Reads a normalized (0-255) CV_32F magnitude Mat's raw pixel data directly
-// (magNorm.data32F is a plain Float32Array view — a property access, not a
-// function call, so it can't be "missing" the way applyColorMap/LUT were)
-// and paints it onto the given canvas context via a manual colormap lookup
-// + putImageData. No OpenCV colormap/LUT function is used anywhere here.
-function renderMagnitudeColormap(magNorm, targetCtx, offsetX, offsetY) {
-  let cols = magNorm.cols;
-  let rows = magNorm.rows;
-  let src = magNorm.data32F;
+// Converts magNorm (CV_32F, 0-255) to an 8-bit Mat, applying histogram
+// equalization if enabled. Caller must delete the returned Mat.
+function toGray8(magNorm) {
+  let gray8 = new cv.Mat();
+  magNorm.convertTo(gray8, cv.CV_8U);
+  if (useHistEq) {
+    try {
+      cv.equalizeHist(gray8, gray8);
+    } catch (err) {
+      console.error('Histogram equalization failed:', err);
+    }
+  }
+  return gray8;
+}
+
+// Reads an 8-bit single-channel Mat's raw pixel data directly and paints it
+// onto the given canvas context via a manual colormap lookup + putImageData.
+// No OpenCV colormap/LUT function is used anywhere here.
+function renderMagnitudeColormap(gray8, targetCtx, offsetX, offsetY) {
+  let cols = gray8.cols;
+  let rows = gray8.rows;
+  let src = gray8.data;
   let lut = getColormapLUT(colorMode);
 
   let imgData = targetCtx.createImageData(cols, rows);
   let out = imgData.data;
 
   for (let i = 0, n = cols * rows; i < n; i++) {
-    let v = src[i];
-    let idx = v < 0 ? 0 : (v > 255 ? 255 : v | 0);
-    let lutIdx = idx * 3;
+    let lutIdx = src[i] * 3;
     let outIdx = i * 4;
     out[outIdx] = lut[lutIdx];
     out[outIdx + 1] = lut[lutIdx + 1];
@@ -651,6 +667,41 @@ function renderMagnitudeColormap(magNorm, targetCtx, offsetX, offsetY) {
   }
 
   targetCtx.putImageData(imgData, offsetX || 0, offsetY || 0);
+}
+
+// Plain min-max normalization stretches 0-255 based on the single brightest
+// and darkest pixel in the whole frame. A handful of outlier pixels (e.g.
+// edge/misalignment artifacts between the two source frames) can dominate
+// that range and crush the real, subtle signal down near black.
+// This clips magnitude to (mean + 3*stddev) BEFORE normalizing, so a few
+// extreme outliers no longer set the scale for the entire image.
+// cv.meanStdDev / cv.threshold are core functions present in virtually
+// every opencv.js build (unlike colormap/LUT), but this still falls back
+// to plain normalize if something's missing, rather than crashing.
+function normalizeMagnitudeRobust(magnitude, magNorm) {
+  try {
+    let meanMat = new cv.Mat();
+    let stddevMat = new cv.Mat();
+    cv.meanStdDev(magnitude, meanMat, stddevMat);
+    let meanVal = meanMat.data64F[0];
+    let stdVal = stddevMat.data64F[0];
+    meanMat.delete();
+    stddevMat.delete();
+
+    let clipMax = meanVal + 3 * stdVal;
+    if (!isFinite(clipMax) || clipMax < 1e-6) {
+      cv.normalize(magnitude, magNorm, 0, 255, cv.NORM_MINMAX);
+      return;
+    }
+
+    let clipped = new cv.Mat();
+    cv.threshold(magnitude, clipped, clipMax, clipMax, cv.THRESH_TRUNC);
+    cv.normalize(clipped, magNorm, 0, 255, cv.NORM_MINMAX);
+    clipped.delete();
+  } catch (err) {
+    console.error('Robust normalize failed, falling back to plain min-max:', err);
+    cv.normalize(magnitude, magNorm, 0, 255, cv.NORM_MINMAX);
+  }
 }
 
 // Renders optical flow for the full frame onto the main output canvas
@@ -665,7 +716,7 @@ function visualizeFlow(flow) {
   cv.cartToPolar(flowX, flowY, magnitude, angle, true);
 
   let magNorm = new cv.Mat();
-  cv.normalize(magnitude, magNorm, 0, 255, cv.NORM_MINMAX);
+  normalizeMagnitudeRobust(magnitude, magNorm);
 
   if (colorMode === 'hsv') {
     // Direction (angle) -> hue, magnitude -> value. Only mode that encodes flow direction.
@@ -689,13 +740,14 @@ function visualizeFlow(flow) {
     sat.delete();
     hsvChannels.delete();
   } else if (colorMode === 'grayscale') {
-    let outputImg = new cv.Mat();
-    magNorm.convertTo(outputImg, cv.CV_8U);
+    let outputImg = toGray8(magNorm);
     cv.imshow('output', outputImg);
     outputImg.delete();
   } else {
     // viridis / magma — pure JS/Canvas path, no OpenCV colormap functions
-    renderMagnitudeColormap(magNorm, ctx, 0, 0);
+    let gray8 = toGray8(magNorm);
+    renderMagnitudeColormap(gray8, ctx, 0, 0);
+    gray8.delete();
   }
 
   flowX.delete(); flowY.delete();
@@ -718,7 +770,7 @@ function visualizeFlowInROI(flow, roi) {
   cv.cartToPolar(flowX, flowY, magnitude, angle, true);
 
   let magNorm = new cv.Mat();
-  cv.normalize(magnitude, magNorm, 0, 255, cv.NORM_MINMAX);
+  normalizeMagnitudeRobust(magnitude, magNorm);
 
   let tempCanvas = document.createElement('canvas');
   tempCanvas.width = Math.floor(roi.w);
@@ -744,12 +796,13 @@ function visualizeFlowInROI(flow, roi) {
     sat.delete();
     hsvChannels.delete();
   } else if (colorMode === 'grayscale') {
-    let outputMat = new cv.Mat();
-    magNorm.convertTo(outputMat, cv.CV_8U);
+    let outputMat = toGray8(magNorm);
     cv.imshow(tempCanvas, outputMat);
     outputMat.delete();
   } else {
-    renderMagnitudeColormap(magNorm, tempCtx, 0, 0);
+    let gray8 = toGray8(magNorm);
+    renderMagnitudeColormap(gray8, tempCtx, 0, 0);
+    gray8.delete();
   }
 
   ctx.drawImage(tempCanvas, Math.floor(roi.x), Math.floor(roi.y));
