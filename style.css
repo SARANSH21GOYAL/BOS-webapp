@@ -225,6 +225,10 @@ input[type="range"] {
   font-weight: bold;
 }
 
+#processBtn:hover {
+  background-color: #00ff88;
+}
+
 #downloadBtn {
   background-color: #00ff88;
   color: #0a0a0a;
@@ -235,6 +239,26 @@ input[type="range"] {
   cursor: pointer;
   font-weight: bold;
 }
+
+#downloadBtn:hover {
+  background-color: #00e5ff;
+}
+
+#resumeBtn {
+  background-color: #00e5ff;
+  color: #0a0a0a;
+  border: none;
+  padding: 12px 30px;
+  font-size: 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+#resumeBtn:hover {
+  background-color: #00ff88;
+}
+
 #burstSection {
   display: flex;
   flex-direction: column;
@@ -264,6 +288,10 @@ input[type="range"] {
   font-weight: bold;
 }
 
+#burstBtn:hover {
+  background-color: #00e5ff;
+}
+
 #burstDownloads {
   display: flex;
   gap: 10px;
@@ -280,6 +308,11 @@ input[type="range"] {
   border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
+}
+
+#downloadImg1:hover, #downloadImg2:hover, #downloadFlow:hover {
+  background-color: #00ff88;
+  color: #0a0a0a;
 }
 
 #recordSection {
@@ -337,4 +370,8 @@ input[type="range"] {
   border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
+}
+
+#downloadRecordBtn:hover {
+  background-color: #00e5ff;
 }
