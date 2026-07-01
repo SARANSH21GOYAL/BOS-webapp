@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bos-app-v5';
+const CACHE_NAME = 'bos-app-v6';
 const FILES_TO_CACHE = [
   '/BOS-webapp/',
   '/BOS-webapp/index.html',
@@ -32,7 +32,7 @@ self.addEventListener('activate', function(e) {
 
 self.addEventListener('fetch', function(e) {
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-store' })
       .then(function(response) {
         // Network se lo aur cache update karo
         let responseClone = response.clone();
