@@ -10,6 +10,7 @@ let canvas = document.getElementById('output');
 let ctx = canvas.getContext('2d', { willReadFrequently: true });
 let prevFrame = null;
 let referenceFrame = null;
+let contrastStrength = 3;
 
 // ROI variables
 let roi = null; // {x, y, w, h}
@@ -134,7 +135,7 @@ function clampRoi(r) {
 }
 
 let isPaused = false;
-
+let contrastStrength = 3;
 let currentCamera = 'user'; // user = front, environment = back
 
 document.getElementById('switchBtn').addEventListener('click', function() {
@@ -192,6 +193,11 @@ document.getElementById('pauseBtn').addEventListener('click', function() {
     this.innerText = "⏸️ Pause Feed";
     startWebcam();
   }
+});
+
+document.getElementById('contrastSlider').addEventListener('input', function() {
+  contrastStrength = parseFloat(this.value);
+  document.getElementById('contrastVal').innerText = this.value;
 });
 
 document.getElementById('levelsSlider').addEventListener('input', function() {
@@ -688,7 +694,7 @@ function normalizeMagnitudeRobust(magnitude, magNorm) {
     meanMat.delete();
     stddevMat.delete();
 
-    let clipMax = meanVal + 3 * stdVal;
+    let clipMax = meanVal + contrastStrength * stdVal;
     if (!isFinite(clipMax) || clipMax < 1e-6) {
       cv.normalize(magnitude, magNorm, 0, 255, cv.NORM_MINMAX);
       return;
