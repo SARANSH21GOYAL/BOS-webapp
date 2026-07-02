@@ -34,7 +34,11 @@
     <button id="flashBtn">🔦 Flash OFF</button>
     <div id="controls">
       <div class="slider-group">
-        <label>Levels: <span id="levelsVal">3</span></label>
+  <label>Contrast Strength: <span id="contrastVal">3</span></label>
+  <input type="range" id="contrastSlider" min="1" max="6" value="3" step="0.5">
+</div>
+<div class="slider-group">
+  <label>Resolution: <span id="resVal">640x480</span></label>
         <input type="range" id="levelsSlider" min="1" max="5" value="3">
       </div>
       <div class="slider-group">
