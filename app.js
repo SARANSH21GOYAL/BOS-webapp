@@ -12,6 +12,14 @@ let prevFrame = null;
 let referenceFrame = null;
 let contrastStrength = 3;
 
+// Builds a descriptive filename tag from the current visualization settings,
+// e.g. "bos_result_viridis_c3_histeqON_l3_w15.png" — used for upload, burst,
+// and recording downloads so exported files are self-documenting.
+function buildResultFilename(extension) {
+  let histTag = useHistEq ? 'histeqON' : 'histeqOFF';
+  return 'bos_result_' + colorMode + '_c' + contrastStrength + '_' + histTag + '_l' + levels + '_w' + windowSize + '.' + extension;
+}
+
 // ROI variables
 let roi = null; // {x, y, w, h}
 let isDrawing = false;
@@ -135,6 +143,7 @@ function clampRoi(r) {
 }
 
 let isPaused = false;
+
 let currentCamera = 'user'; // user = front, environment = back
 
 document.getElementById('switchBtn').addEventListener('click', function() {
@@ -292,7 +301,7 @@ document.getElementById('processBtn').addEventListener('click', function() {
 
 document.getElementById('downloadBtn').addEventListener('click', function() {
   let link = document.createElement('a');
-  link.download = 'optical_flow_result.png';
+  link.download = buildResultFilename('png');
   link.href = canvas.toDataURL();
   link.click();
 });
@@ -381,7 +390,7 @@ document.getElementById('downloadImg2').addEventListener('click', function() {
 
 document.getElementById('downloadFlow').addEventListener('click', function() {
   let link = document.createElement('a');
-  link.download = 'burst_flow_result.png';
+  link.download = buildResultFilename('png');
   link.href = canvas.toDataURL();
   link.click();
 });
@@ -424,7 +433,7 @@ document.getElementById('recordBtn').addEventListener('click', function() {
       downloadBtn.style.display = 'inline-block';
       downloadBtn.onclick = function() {
         let link = document.createElement('a');
-        link.download = 'bos_flow_recording.webm';
+        link.download = buildResultFilename('webm');
         link.href = url;
         link.click();
       };
