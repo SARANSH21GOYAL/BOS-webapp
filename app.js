@@ -135,7 +135,6 @@ function clampRoi(r) {
 }
 
 let isPaused = false;
-let contrastStrength = 3;
 let currentCamera = 'user'; // user = front, environment = back
 
 document.getElementById('switchBtn').addEventListener('click', function() {
