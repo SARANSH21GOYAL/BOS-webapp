@@ -9,10 +9,7 @@
     <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
-      .then(reg => {
-        reg.update();
-        console.log("Offline ready!")
-      })
+      .then(reg => { reg.update(); console.log("Offline ready!") })
       .catch(err => console.log("SW Error: " + err));
   }
 </script>
@@ -69,9 +66,11 @@
       </div>
       <button id="processBtn">Calculate Optical Flow</button>
       <button id="downloadBtn" style="display:none">Download Result ⬇️</button>
+      <button id="exportReportUploadBtn" style="display:none">Export Report 📄</button>
       <button id="resumeBtn" style="display:none">▶️ Resume Live Feed</button>
     </div>
 
+    <!-- Burst Section -->
     <div id="burstSection">
       <h3>Burst Capture</h3>
       <button id="burstBtn">📸 Capture Burst</button>
@@ -79,9 +78,11 @@
         <button id="downloadImg1">Download Image 1 ⬇️</button>
         <button id="downloadImg2">Download Image 2 ⬇️</button>
         <button id="downloadFlow">Download Flow Result ⬇️</button>
+        <button id="exportReportBurstBtn" style="display:none">Export Report 📄</button>
       </div>
     </div>
 
+    <!-- Record Section -->
     <div id="recordSection">
       <h3>Record Flow Video</h3>
       <p id="recordWarning">⚠️ Best at low resolution (320x240 or less)</p>
@@ -93,9 +94,6 @@
     <canvas id="output" width="640" height="480"></canvas>
     <video id="webcam" width="640" height="480" autoplay style="display:none"></video>
     <script src="app.js"></script>
-    <script src="opencv.js" 
-            onload="onOpenCvReady()" 
-            type="text/javascript">
-    </script>
+    <script src="opencv.js" onload="onOpenCvReady()" type="text/javascript"></script>
 </body>
 </html>
