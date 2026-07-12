@@ -315,6 +315,16 @@ document.getElementById('processBtn').addEventListener('click', function() {
     alert('Warning: Image size is over 2MB. This may slow down processing or crash on mobile.');
   }
 
+  // Convert both files to base64 first so they can be embedded in the
+  // HTML report — URL.createObjectURL() URLs expire after the session ends
+  let reader1 = new FileReader();
+  let reader2 = new FileReader();
+
+  reader1.onload = function(e1) {
+    uploadRefDataUrl = e1.target.result;
+    reader2.onload = function(e2) {
+      uploadFlowDataUrl = e2.target.result;
+
   let img1 = new Image();
   let img2 = new Image();
 
@@ -361,9 +371,14 @@ document.getElementById('processBtn').addEventListener('click', function() {
       gray1.delete(); gray2.delete();
       flow.delete();
     };
-    img2.src = URL.createObjectURL(flowFile);
+    img2.src = uploadFlowDataUrl;
   };
-  img1.src = URL.createObjectURL(refFile);
+  img1.src = uploadRefDataUrl;
+
+    }; // reader2.onload end
+    reader2.readAsDataURL(flowFile);
+  }; // reader1.onload end
+  reader1.readAsDataURL(refFile);
 });
 
 document.getElementById('downloadBtn').addEventListener('click', function() {
