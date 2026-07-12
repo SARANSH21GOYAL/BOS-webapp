@@ -383,3 +383,19 @@ input[type="range"] {
 #downloadRecordBtn:hover {
   background-color: #00e5ff;
 }
+
+#exportReportUploadBtn, #exportReportBurstBtn {
+  background-color: #aa00ff;
+  color: #ffffff;
+  border: none;
+  padding: 12px 30px;
+  font-size: 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+#exportReportUploadBtn:hover, #exportReportBurstBtn:hover {
+  background-color: #cc44ff;
+}
