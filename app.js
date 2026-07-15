@@ -515,7 +515,10 @@ document.getElementById('recordBtn').addEventListener('click', function() {
     document.getElementById('downloadRecordBtn').style.display = 'none';
 
     let stream = canvas.captureStream();
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+    mediaRecorder = new MediaRecorder(stream, {
+  mimeType: 'video/webm',
+  videoBitsPerSecond: 8000000  // 8 Mbps — higher = better quality, bigger file
+});
 
     mediaRecorder.ondataavailable = function(e) {
       if (e.data.size > 0) recordedChunks.push(e.data);
