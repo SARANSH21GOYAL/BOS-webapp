@@ -12,6 +12,20 @@ let prevFrame = null;
 let referenceFrame = null;
 let contrastStrength = 3;
 
+// Gamma correction — brightens (gamma>1) or darkens (gamma<1) the flow
+// visualization without clipping extremes. Matches Pocket Schlieren's
+// live-mode gamma correction. LUT (lookup table) precomputed for speed —
+// rebuilt only when slider changes, not every frame.
+let gammaValue = 1.0;
+function buildGammaLUT(gamma) {
+  let lut = new Float32Array(256);
+  for (let i = 0; i < 256; i++) {
+    lut[i] = 255 * Math.pow(i / 255, 1 / gamma);
+  }
+  return lut;
+}
+let gammaLUT = buildGammaLUT(gammaValue);
+
 // Stores the last uploaded reference and flow images as data URLs so the
 // Export Report button can embed them in the HTML report after processing.
 let uploadRefDataUrl = null;
@@ -22,7 +36,7 @@ let uploadFlowDataUrl = null;
 // and recording downloads so exported files are self-documenting.
 function buildResultFilename(extension) {
   let histTag = useHistEq ? 'histeqON' : 'histeqOFF';
-  return 'bos_result_' + colorMode + '_c' + contrastStrength + '_' + histTag + '_l' + levels + '_w' + windowSize + '.' + extension;
+  return 'bos_result_' + colorMode + '_c' + contrastStrength + '_g' + gammaValue + '_' + histTag + '_l' + levels + '_w' + windowSize + '.' + extension;
 }
 
 // Generates a self-contained HTML experiment report and triggers a download.
@@ -64,6 +78,7 @@ function exportReport(img1DataUrl, img2DataUrl, resultDataUrl) {
     <tr><td>Resolution</td><td>${camWidth}x${camHeight}</td></tr>
     <tr><td>Colormap</td><td>${colorMode}</td></tr>
     <tr><td>Contrast Strength</td><td>${contrastStrength}</td></tr>
+    <tr><td>Gamma</td><td>${gammaValue}</td></tr>
     <tr><td>Levels</td><td>${levels}</td></tr>
     <tr><td>Window Size</td><td>${windowSize}</td></tr>
     <tr><td>Histogram Equalization</td><td>${histEqStatus}</td></tr>
@@ -276,6 +291,12 @@ document.getElementById('pauseBtn').addEventListener('click', function() {
 document.getElementById('contrastSlider').addEventListener('input', function() {
   contrastStrength = parseFloat(this.value);
   document.getElementById('contrastVal').innerText = this.value;
+});
+
+document.getElementById('gammaSlider').addEventListener('input', function() {
+  gammaValue = parseFloat(this.value);
+  document.getElementById('gammaVal').innerText = this.value;
+  gammaLUT = buildGammaLUT(gammaValue);
 });
 
 document.getElementById('levelsSlider').addEventListener('input', function() {
@@ -788,6 +809,20 @@ function renderMagnitudeColormap(gray8, targetCtx, offsetX, offsetY) {
 // cv.meanStdDev / cv.threshold are core functions present in virtually
 // every opencv.js build (unlike colormap/LUT), but this still falls back
 // to plain normalize if something's missing, rather than crashing.
+// Applies the gamma LUT in-place to magNorm (CV_32F, values 0-255).
+// Runs BEFORE the colormap branch (HSV/Grayscale/Viridis/Magma), so
+// gamma affects all visualization modes identically. Skipped entirely
+// when gamma = 1.0 (no-op) so default behaviour has zero extra cost.
+function applyGammaCorrection(magNorm) {
+  if (gammaValue === 1.0) return;
+  let data = magNorm.data32F;
+  for (let i = 0; i < data.length; i++) {
+    let v = data[i];
+    let idx = v < 0 ? 0 : (v > 255 ? 255 : Math.round(v));
+    data[i] = gammaLUT[idx];
+  }
+}
+
 function normalizeMagnitudeRobust(magnitude, magNorm) {
   try {
     let meanMat = new cv.Mat();
@@ -826,7 +861,8 @@ function visualizeFlow(flow) {
   cv.cartToPolar(flowX, flowY, magnitude, angle, true);
 
   let magNorm = new cv.Mat();
-  normalizeMagnitudeRobust(magnitude, magNorm);
+  normalizeMagnitudeRobust(magnitude, magNorm);  
+  applyGammaCorrection(magNorm);
 
   if (colorMode === 'hsv') {
     // Direction (angle) -> hue, magnitude -> value. Only mode that encodes flow direction.
@@ -881,6 +917,7 @@ function visualizeFlowInROI(flow, roi) {
 
   let magNorm = new cv.Mat();
   normalizeMagnitudeRobust(magnitude, magNorm);
+  applyGammaCorrection(magNorm);
 
   let tempCanvas = document.createElement('canvas');
   tempCanvas.width = Math.floor(roi.w);
