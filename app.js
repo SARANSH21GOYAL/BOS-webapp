@@ -541,6 +541,10 @@ document.getElementById('exportReportBurstBtn').addEventListener('click', functi
   exportReport(burstImg1, burstImg2, canvas.toDataURL());
 });
 
+document.getElementById('exportJsonBurstBtn').addEventListener('click', function() {
+  exportReportJSON('burst_image1.png', 'burst_image2.png', buildResultFilename('png'));
+});
+
 document.getElementById('resumeBurstBtn').addEventListener('click', function() {
   document.getElementById('resumeBurstBtn').style.display = 'none';
   document.getElementById('burstDownloads').style.display = 'none';
