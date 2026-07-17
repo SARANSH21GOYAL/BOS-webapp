@@ -112,6 +112,33 @@ function exportReport(img1DataUrl, img2DataUrl, resultDataUrl) {
   link.click();
 }
 
+function exportReportJSON(refFilename, flowFilename, resultFilename) {
+  let now = new Date();
+  let reportData = {
+    timestamp: now.toISOString(),
+    settings: {
+      resolution: camWidth + 'x' + camHeight,
+      colormap: colorMode,
+      contrastStrength: contrastStrength,
+      levels: levels,
+      windowSize: windowSize,
+      histogramEqualization: useHistEq
+    },
+    imageFiles: {
+      reference: refFilename,
+      flow: flowFilename,
+      result: resultFilename
+    }
+  };
+
+  let blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+  let url = URL.createObjectURL(blob);
+  let link = document.createElement('a');
+  link.download = 'bos_report_' + now.getFullYear() + '_' + (now.getMonth()+1) + '_' + now.getDate() + '_' + now.getHours() + now.getMinutes() + '.json';
+  link.href = url;
+  link.click();
+}
+
 // ROI variables
 let roi = null; // {x, y, w, h}
 let isDrawing = false;
@@ -382,6 +409,7 @@ document.getElementById('processBtn').addEventListener('click', function() {
 
       document.getElementById('downloadBtn').style.display = 'inline-block';
       document.getElementById('exportReportUploadBtn').style.display = 'inline-block';
+      document.getElementById('exportJsonUploadBtn').style.display = 'inline-block';
       if (intervalId) {
         clearInterval(intervalId);
         intervalId = null;
@@ -412,11 +440,14 @@ document.getElementById('downloadBtn').addEventListener('click', function() {
 document.getElementById('exportReportUploadBtn').addEventListener('click', function() {
   exportReport(uploadRefDataUrl, uploadFlowDataUrl, canvas.toDataURL());
 });
-
+document.getElementById('exportJsonUploadBtn').addEventListener('click', function() {
+  exportReportJSON('uploaded_reference.png', 'uploaded_flow.png', buildResultFilename('png'));
+});
 document.getElementById('resumeBtn').addEventListener('click', function() {
   document.getElementById('resumeBtn').style.display = 'none';
   document.getElementById('downloadBtn').style.display = 'none';
   document.getElementById('exportReportUploadBtn').style.display = 'none';
+  document.getElementById('exportJsonUploadBtn').style.display = 'none';
   captureFrames();
 });
 
@@ -465,6 +496,7 @@ document.getElementById('burstBtn').addEventListener('click', function() {
 
         document.getElementById('burstDownloads').style.display = 'flex';
         document.getElementById('exportReportBurstBtn').style.display = 'inline-block';
+        document.getElementById('exportJsonBurstBtn').style.display = 'inline-block';
         document.getElementById('burstBtn').innerText = "📸 Capture Burst";
         document.getElementById('burstBtn').disabled = false;
 
@@ -513,6 +545,8 @@ document.getElementById('resumeBurstBtn').addEventListener('click', function() {
   document.getElementById('resumeBurstBtn').style.display = 'none';
   document.getElementById('burstDownloads').style.display = 'none';
   document.getElementById('exportReportBurstBtn').style.display = 'none';
+  document.getElementById('exportJsonBurstBtn').style.display = 'none';
+
   captureFrames();
 });
 
