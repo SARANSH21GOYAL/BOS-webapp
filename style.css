@@ -415,3 +415,19 @@ input[type="range"] {
 #exportReportUploadBtn:hover, #exportReportBurstBtn:hover {
   background-color: #cc44ff;
 }
+
+#exportJsonUploadBtn, #exportJsonBurstBtn {
+  background-color: #ffaa00;
+  color: #0a0a0a;
+  border: none;
+  padding: 12px 30px;
+  font-size: 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+#exportJsonUploadBtn:hover, #exportJsonBurstBtn:hover {
+  background-color: #ffcc44;
+}
