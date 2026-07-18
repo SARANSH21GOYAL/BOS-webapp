@@ -17,6 +17,12 @@ let contrastStrength = 3;
 // technique: simple absolute difference between frames, no direction info).
 let algorithmMode = 'opticalflow';
 
+// Blur applied before CFS's frame subtraction, to smooth out sensor noise/
+// fringes (rolling shutter, AC light flicker) that raw pixel-diff exposes.
+// Only used in CFS mode — Optical Flow already has implicit smoothing built
+// into its calculation. Must be an odd number (OpenCV requirement).
+let blurStrength = 3;
+</parameter>
 // Gamma correction — brightens (gamma>1) or darkens (gamma<1) the flow
 // visualization without clipping extremes. Matches Pocket Schlieren's
 // live-mode gamma correction. LUT (lookup table) precomputed for speed —
@@ -185,6 +191,11 @@ document.getElementById('colorModeSelect').addEventListener('change', function()
 
 document.getElementById('algorithmSelect').addEventListener('change', function() {
   algorithmMode = this.value; // 'opticalflow' | 'cfs'
+});
+
+document.getElementById('blurSlider').addEventListener('input', function() {
+  blurStrength = parseInt(this.value);
+  document.getElementById('blurVal').innerText = this.value;
 });
 
 let useHistEq = false;
@@ -917,10 +928,20 @@ function applyGammaCorrection(magNorm) {
 // Caller must delete() the returned magnitude Mat, and angle too if not null.
 function computeMagnitudeAngle(grayA, grayB) {
   if (algorithmMode === 'cfs') {
+    // Blur BEFORE subtracting — smooths sensor noise/fringes so they don't
+    // get exposed by the raw pixel-diff (see blurStrength comment above).
+    let blurA = new cv.Mat();
+    let blurB = new cv.Mat();
+    let ksize = new cv.Size(blurStrength, blurStrength);
+    cv.GaussianBlur(grayA, blurA, ksize, 0, 0, cv.BORDER_DEFAULT);
+    cv.GaussianBlur(grayB, blurB, ksize, 0, 0, cv.BORDER_DEFAULT);
+
     let diff = new cv.Mat();
-    cv.absdiff(grayA, grayB, diff);
+    cv.absdiff(blurA, blurB, diff);
     let magnitude = new cv.Mat();
     diff.convertTo(magnitude, cv.CV_32F);
+    blurA.delete();
+    blurB.delete();
     diff.delete();
     return { magnitude: magnitude, angle: null };
   } else {
