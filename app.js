@@ -12,6 +12,11 @@ let prevFrame = null;
 let referenceFrame = null;
 let contrastStrength = 3;
 
+// Algorithm selector — 'opticalflow' (Farneback, has direction) or
+// 'cfs' (Consecutive Frame Subtraction — Pocket Schlieren's fast, live-mode
+// technique: simple absolute difference between frames, no direction info).
+let algorithmMode = 'opticalflow';
+
 // Gamma correction — brightens (gamma>1) or darkens (gamma<1) the flow
 // visualization without clipping extremes. Matches Pocket Schlieren's
 // live-mode gamma correction. LUT (lookup table) precomputed for speed —
@@ -32,11 +37,11 @@ let uploadRefDataUrl = null;
 let uploadFlowDataUrl = null;
 
 // Builds a descriptive filename tag from the current visualization settings,
-// e.g. "bos_result_viridis_c3_histeqON_l3_w15.png" — used for upload, burst,
-// and recording downloads so exported files are self-documenting.
+// e.g. "bos_result_opticalflow_viridis_c3_g1_histeqON_l3_w15.png" — used for
+// upload, burst, and recording downloads so exported files are self-documenting.
 function buildResultFilename(extension) {
   let histTag = useHistEq ? 'histeqON' : 'histeqOFF';
-  return 'bos_result_' + colorMode + '_c' + contrastStrength + '_g' + gammaValue + '_' + histTag + '_l' + levels + '_w' + windowSize + '.' + extension;
+  return 'bos_result_' + algorithmMode + '_' + colorMode + '_c' + contrastStrength + '_g' + gammaValue + '_' + histTag + '_l' + levels + '_w' + windowSize + '.' + extension;
 }
 
 // Generates a self-contained HTML experiment report and triggers a download.
@@ -76,6 +81,7 @@ function exportReport(img1DataUrl, img2DataUrl, resultDataUrl) {
   <h2>Settings</h2>
   <table>
     <tr><td>Resolution</td><td>${camWidth}x${camHeight}</td></tr>
+    <tr><td>Algorithm</td><td>${algorithmMode}</td></tr>
     <tr><td>Colormap</td><td>${colorMode}</td></tr>
     <tr><td>Contrast Strength</td><td>${contrastStrength}</td></tr>
     <tr><td>Gamma</td><td>${gammaValue}</td></tr>
@@ -118,8 +124,10 @@ function exportReportJSON(refFilename, flowFilename, resultFilename) {
     timestamp: now.toISOString(),
     settings: {
       resolution: camWidth + 'x' + camHeight,
+      algorithm: algorithmMode,
       colormap: colorMode,
       contrastStrength: contrastStrength,
+      gamma: gammaValue,
       levels: levels,
       windowSize: windowSize,
       histogramEqualization: useHistEq
@@ -173,6 +181,10 @@ document.getElementById('viewToggleBtn').addEventListener('click', function() {
 
 document.getElementById('colorModeSelect').addEventListener('change', function() {
   colorMode = this.value; // 'hsv' | 'grayscale' | 'viridis' | 'magma'
+});
+
+document.getElementById('algorithmSelect').addEventListener('change', function() {
+  algorithmMode = this.value; // 'opticalflow' | 'cfs'
 });
 
 let useHistEq = false;
@@ -397,10 +409,9 @@ document.getElementById('processBtn').addEventListener('click', function() {
       cv.cvtColor(mat1, gray1, cv.COLOR_RGBA2GRAY);
       cv.cvtColor(mat2, gray2, cv.COLOR_RGBA2GRAY);
 
-      let flow = new cv.Mat();
-      cv.calcOpticalFlowFarneback(gray1, gray2, flow, 0.5, levels, windowSize, 3, 5, 1.2, 0);
+      let uploadResult = computeMagnitudeAngle(gray1, gray2);
 
-      visualizeFlow(flow);
+      visualizeFlow(uploadResult.magnitude, uploadResult.angle);
 
       // Store images for export report — kept as data URLs so they can be
       // embedded directly in the HTML report without needing external files
@@ -418,7 +429,8 @@ document.getElementById('processBtn').addEventListener('click', function() {
 
       mat1.delete(); mat2.delete();
       gray1.delete(); gray2.delete();
-      flow.delete();
+      uploadResult.magnitude.delete();
+      if (uploadResult.angle) uploadResult.angle.delete();
     };
     img2.src = uploadFlowDataUrl;
   };
@@ -489,10 +501,9 @@ document.getElementById('burstBtn').addEventListener('click', function() {
         cv.cvtColor(mat1, gray1, cv.COLOR_RGBA2GRAY);
         cv.cvtColor(mat2, gray2, cv.COLOR_RGBA2GRAY);
 
-        let flow = new cv.Mat();
-        cv.calcOpticalFlowFarneback(gray1, gray2, flow, 0.5, levels, windowSize, 3, 5, 1.2, 0);
+        let burstResult = computeMagnitudeAngle(gray1, gray2);
 
-        visualizeFlow(flow);
+        visualizeFlow(burstResult.magnitude, burstResult.angle);
 
         document.getElementById('burstDownloads').style.display = 'flex';
         document.getElementById('exportReportBurstBtn').style.display = 'inline-block';
@@ -508,7 +519,8 @@ document.getElementById('resumeBurstBtn').style.display = 'inline-block';
 
         mat1.delete(); mat2.delete();
         gray1.delete(); gray2.delete();
-        flow.delete();
+        burstResult.magnitude.delete();
+        if (burstResult.angle) burstResult.angle.delete();
       };
       img2.src = burstImg2;
     };
@@ -686,11 +698,7 @@ function captureFrames() {
         let prevRoi = prevGray.roi(roiRect);
         let currRoi = currGray.roi(roiRect);
 
-        let flow = new cv.Mat();
-        cv.calcOpticalFlowFarneback(
-          prevRoi, currRoi, flow,
-          0.5, levels, windowSize, 3, 5, 1.2, 0
-        );
+        let roiResult = computeMagnitudeAngle(prevRoi, currRoi);
 
         // Only show flow on ROI area, black canvas elsewhere
         ctx.fillStyle = 'black';
@@ -701,23 +709,21 @@ function captureFrames() {
         ctx.lineWidth = 2;
         ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
 
-        visualizeFlowInROI(flow, roi);
+        visualizeFlowInROI(roiResult.magnitude, roiResult.angle, roi);
         updateFPS();
 
         prevRoi.delete();
         currRoi.delete();
-        flow.delete();
+        roiResult.magnitude.delete();
+        if (roiResult.angle) roiResult.angle.delete();
       } else {
         // No ROI — process full frame
-        let flow = new cv.Mat();
-        cv.calcOpticalFlowFarneback(
-          prevGray, currGray, flow,
-          0.5, levels, windowSize, 3, 5, 1.2, 0
-        );
+        let liveResult = computeMagnitudeAngle(prevGray, currGray);
 
-        visualizeFlow(flow);
+        visualizeFlow(liveResult.magnitude, liveResult.angle);
         updateFPS();
-        flow.delete();
+        liveResult.magnitude.delete();
+        if (liveResult.angle) liveResult.angle.delete();
       }
 
       prev.delete();
@@ -847,20 +853,6 @@ function renderMagnitudeColormap(gray8, targetCtx, offsetX, offsetY) {
 // cv.meanStdDev / cv.threshold are core functions present in virtually
 // every opencv.js build (unlike colormap/LUT), but this still falls back
 // to plain normalize if something's missing, rather than crashing.
-// Applies the gamma LUT in-place to magNorm (CV_32F, values 0-255).
-// Runs BEFORE the colormap branch (HSV/Grayscale/Viridis/Magma), so
-// gamma affects all visualization modes identically. Skipped entirely
-// when gamma = 1.0 (no-op) so default behaviour has zero extra cost.
-function applyGammaCorrection(magNorm) {
-  if (gammaValue === 1.0) return;
-  let data = magNorm.data32F;
-  for (let i = 0; i < data.length; i++) {
-    let v = data[i];
-    let idx = v < 0 ? 0 : (v > 255 ? 255 : Math.round(v));
-    data[i] = gammaLUT[idx];
-  }
-}
-
 function normalizeMagnitudeRobust(magnitude, magNorm) {
   try {
     let meanMat = new cv.Mat();
@@ -887,26 +879,69 @@ function normalizeMagnitudeRobust(magnitude, magNorm) {
   }
 }
 
-// Renders optical flow for the full frame onto the main output canvas
-function visualizeFlow(flow) {
-  let flowChannels = new cv.MatVector();
-  cv.split(flow, flowChannels);
-  let flowX = flowChannels.get(0);
-  let flowY = flowChannels.get(1);
+// Applies the gamma LUT in-place to magNorm (CV_32F, values 0-255).
+// Runs BEFORE the colormap branch (HSV/Grayscale/Viridis/Magma), so
+// gamma affects all visualization modes identically. Skipped entirely
+// when gamma = 1.0 (no-op) so default behaviour has zero extra cost.
+function applyGammaCorrection(magNorm) {
+  if (gammaValue === 1.0) return;
+  let data = magNorm.data32F;
+  for (let i = 0; i < data.length; i++) {
+    let v = data[i];
+    let idx = v < 0 ? 0 : (v > 255 ? 255 : Math.round(v));
+    data[i] = gammaLUT[idx];
+  }
+}
 
-  let magnitude = new cv.Mat();
-  let angle = new cv.Mat();
-  cv.cartToPolar(flowX, flowY, magnitude, angle, true);
+// Computes magnitude (and angle, if available) for two grayscale frames,
+// based on the selected algorithm:
+// - 'opticalflow': Farneback — has direction (angle)
+// - 'cfs': Consecutive Frame Subtraction (Pocket Schlieren's fast technique)
+//   — simple absolute difference between frames, no direction info
+//   (angle comes back null). Much cheaper to compute than Farneback.
+// Caller must delete() the returned magnitude Mat, and angle too if not null.
+function computeMagnitudeAngle(grayA, grayB) {
+  if (algorithmMode === 'cfs') {
+    let diff = new cv.Mat();
+    cv.absdiff(grayA, grayB, diff);
+    let magnitude = new cv.Mat();
+    diff.convertTo(magnitude, cv.CV_32F);
+    diff.delete();
+    return { magnitude: magnitude, angle: null };
+  } else {
+    let flow = new cv.Mat();
+    cv.calcOpticalFlowFarneback(grayA, grayB, flow, 0.5, levels, windowSize, 3, 5, 1.2, 0);
+    let flowChannels = new cv.MatVector();
+    cv.split(flow, flowChannels);
+    let flowX = flowChannels.get(0);
+    let flowY = flowChannels.get(1);
+    let magnitude = new cv.Mat();
+    let angle = new cv.Mat();
+    cv.cartToPolar(flowX, flowY, magnitude, angle, true);
+    flowX.delete();
+    flowY.delete();
+    flowChannels.delete();
+    flow.delete();
+    return { magnitude: magnitude, angle: angle };
+  }
+}
 
+// Renders flow/CFS magnitude for the full frame onto the main output canvas.
+// Takes magnitude + angle directly (angle is null for CFS — no direction).
+function visualizeFlow(magnitude, angle) {
   let magNorm = new cv.Mat();
-  normalizeMagnitudeRobust(magnitude, magNorm);  
+  normalizeMagnitudeRobust(magnitude, magNorm);
   applyGammaCorrection(magNorm);
 
-  if (colorMode === 'hsv') {
+  // HSV mode needs direction (angle) to make sense. CFS has none, so fall
+  // back to grayscale instead of showing a meaningless/undefined hue.
+  let effectiveColorMode = (colorMode === 'hsv' && angle == null) ? 'grayscale' : colorMode;
+
+  if (effectiveColorMode === 'hsv') {
     // Direction (angle) -> hue, magnitude -> value. Only mode that encodes flow direction.
     let hsv = new cv.Mat();
     let hsvChannels = new cv.MatVector();
-    let sat = new cv.Mat(flow.rows, flow.cols, cv.CV_32F, new cv.Scalar(255));
+    let sat = new cv.Mat(magnitude.rows, magnitude.cols, cv.CV_32F, new cv.Scalar(255));
     hsvChannels.push_back(angle);
     hsvChannels.push_back(sat);
     hsvChannels.push_back(magNorm);
@@ -923,7 +958,7 @@ function visualizeFlow(flow) {
     hsv.delete();
     sat.delete();
     hsvChannels.delete();
-  } else if (colorMode === 'grayscale') {
+  } else if (effectiveColorMode === 'grayscale') {
     let outputImg = toGray8(magNorm);
     cv.imshow('output', outputImg);
     outputImg.delete();
@@ -934,38 +969,28 @@ function visualizeFlow(flow) {
     gray8.delete();
   }
 
-  flowX.delete(); flowY.delete();
-  magnitude.delete(); angle.delete();
   magNorm.delete();
-  flowChannels.delete();
 }
 
-// Renders optical flow only within the selected ROI, drawn onto the canvas
-// at the ROI's position. Must live at the top level (NOT nested inside
-// visualizeFlow) so captureFrames() can actually call it.
-function visualizeFlowInROI(flow, roi) {
-  let flowChannels = new cv.MatVector();
-  cv.split(flow, flowChannels);
-  let flowX = flowChannels.get(0);
-  let flowY = flowChannels.get(1);
-
-  let magnitude = new cv.Mat();
-  let angle = new cv.Mat();
-  cv.cartToPolar(flowX, flowY, magnitude, angle, true);
-
+// Renders flow/CFS magnitude only within the selected ROI, drawn onto the
+// canvas at the ROI's position. Must live at the top level (NOT nested
+// inside visualizeFlow) so captureFrames() can actually call it.
+function visualizeFlowInROI(magnitude, angle, roi) {
   let magNorm = new cv.Mat();
   normalizeMagnitudeRobust(magnitude, magNorm);
   applyGammaCorrection(magNorm);
+
+  let effectiveColorMode = (colorMode === 'hsv' && angle == null) ? 'grayscale' : colorMode;
 
   let tempCanvas = document.createElement('canvas');
   tempCanvas.width = Math.floor(roi.w);
   tempCanvas.height = Math.floor(roi.h);
   let tempCtx = tempCanvas.getContext('2d');
 
-  if (colorMode === 'hsv') {
+  if (effectiveColorMode === 'hsv') {
     let hsv = new cv.Mat();
     let hsvChannels = new cv.MatVector();
-    let sat = new cv.Mat(flow.rows, flow.cols, cv.CV_32F, new cv.Scalar(255));
+    let sat = new cv.Mat(magnitude.rows, magnitude.cols, cv.CV_32F, new cv.Scalar(255));
     hsvChannels.push_back(angle);
     hsvChannels.push_back(sat);
     hsvChannels.push_back(magNorm);
@@ -980,7 +1005,7 @@ function visualizeFlowInROI(flow, roi) {
     hsv.delete();
     sat.delete();
     hsvChannels.delete();
-  } else if (colorMode === 'grayscale') {
+  } else if (effectiveColorMode === 'grayscale') {
     let outputMat = toGray8(magNorm);
     cv.imshow(tempCanvas, outputMat);
     outputMat.delete();
@@ -992,8 +1017,5 @@ function visualizeFlowInROI(flow, roi) {
 
   ctx.drawImage(tempCanvas, Math.floor(roi.x), Math.floor(roi.y));
 
-  flowX.delete(); flowY.delete();
-  magnitude.delete(); angle.delete();
   magNorm.delete();
-  flowChannels.delete();
 }
