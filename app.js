@@ -194,8 +194,10 @@ document.getElementById('algorithmSelect').addEventListener('change', function()
 });
 
 document.getElementById('blurSlider').addEventListener('input', function() {
-  blurStrength = parseInt(this.value);
-  document.getElementById('blurVal').innerText = this.value;
+  let val = parseInt(this.value);
+  if (val % 2 === 0) val += 1;  // force odd (OpenCV kernel size requirement)
+  blurStrength = val;
+  document.getElementById('blurVal').innerText = val;
 });
 
 let useHistEq = false;
