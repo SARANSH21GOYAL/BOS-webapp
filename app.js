@@ -22,7 +22,7 @@ let algorithmMode = 'opticalflow';
 // Only used in CFS mode — Optical Flow already has implicit smoothing built
 // into its calculation. Must be an odd number (OpenCV requirement).
 let blurStrength = 3;
-</parameter>
+
 // Gamma correction — brightens (gamma>1) or darkens (gamma<1) the flow
 // visualization without clipping extremes. Matches Pocket Schlieren's
 // live-mode gamma correction. LUT (lookup table) precomputed for speed —
