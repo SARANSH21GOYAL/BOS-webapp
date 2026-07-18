@@ -779,6 +779,18 @@ const MAGMA_STOPS = [
   [1.000, 252, 253, 191]
 ];
 
+const INFERNO_STOPS = [
+  [0.000, 0, 0, 4],
+  [0.125, 31, 12, 72],
+  [0.250, 85, 15, 109],
+  [0.375, 136, 34, 106],
+  [0.500, 186, 54, 85],
+  [0.625, 227, 89, 51],
+  [0.750, 249, 140, 10],
+  [0.875, 249, 201, 50],
+  [1.000, 252, 255, 164]
+];
+
 function buildColormapLUT(stops) {
   let lutData = new Uint8Array(256 * 3);
   for (let i = 0; i < 256; i++) {
@@ -800,9 +812,12 @@ function buildColormapLUT(stops) {
 // dependency, so it works regardless of which opencv.js build is loaded.
 const VIRIDIS_LUT = buildColormapLUT(VIRIDIS_STOPS);
 const MAGMA_LUT = buildColormapLUT(MAGMA_STOPS);
+const INFERNO_LUT = buildColormapLUT(INFERNO_STOPS);
 
 function getColormapLUT(mode) {
-  return mode === 'viridis' ? VIRIDIS_LUT : MAGMA_LUT;
+  if (mode === 'viridis') return VIRIDIS_LUT;
+  if (mode === 'inferno') return INFERNO_LUT;
+  return MAGMA_LUT;
 }
 
 // Converts magNorm (CV_32F, 0-255) to an 8-bit Mat, applying histogram
