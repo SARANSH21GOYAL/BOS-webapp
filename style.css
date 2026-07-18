@@ -110,6 +110,23 @@ h1 {
   color: #0a0a0a;
 }
 
+#algorithmSelect {
+  background-color: #1a1a2e;
+  color: #00e5ff;
+  border: 2px solid #00e5ff;
+  padding: 12px 20px;
+  font-size: 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+#algorithmSelect:hover {
+  background-color: #00e5ff;
+  color: #0a0a0a;
+}
+
 #colorModeSelect {
   background-color: #1a1a2e;
   color: #00e5ff;
