@@ -192,6 +192,11 @@ h1 {
   font-size: 14px;
 }
 
+.slider-disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 input[type="range"] {
   width: 80%;
   accent-color: #00e5ff;
