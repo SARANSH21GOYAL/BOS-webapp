@@ -191,7 +191,36 @@ document.getElementById('colorModeSelect').addEventListener('change', function()
 
 document.getElementById('algorithmSelect').addEventListener('change', function() {
   algorithmMode = this.value; // 'opticalflow' | 'cfs'
+  updateAlgorithmUI();
 });
+
+// Greys out sliders that have no effect for the currently selected algorithm
+// (Levels/Window are Optical Flow-only; Blur is CFS-only), so the UI doesn't
+// invite adjusting a control that won't do anything.
+function updateAlgorithmUI() {
+  let levelsGroup = document.getElementById('levelsSlider').closest('.slider-group');
+  let windowGroup = document.getElementById('windowSlider').closest('.slider-group');
+  let blurGroup = document.getElementById('blurSlider').closest('.slider-group');
+
+  if (algorithmMode === 'cfs') {
+    document.getElementById('levelsSlider').disabled = true;
+    document.getElementById('windowSlider').disabled = true;
+    document.getElementById('blurSlider').disabled = false;
+    levelsGroup.classList.add('slider-disabled');
+    windowGroup.classList.add('slider-disabled');
+    blurGroup.classList.remove('slider-disabled');
+  } else {
+    document.getElementById('levelsSlider').disabled = false;
+    document.getElementById('windowSlider').disabled = false;
+    document.getElementById('blurSlider').disabled = true;
+    levelsGroup.classList.remove('slider-disabled');
+    windowGroup.classList.remove('slider-disabled');
+    blurGroup.classList.add('slider-disabled');
+  }
+}
+
+// Set the correct initial state on page load (default algorithm is Optical Flow)
+updateAlgorithmUI();
 
 document.getElementById('blurSlider').addEventListener('input', function() {
   let val = parseInt(this.value);
