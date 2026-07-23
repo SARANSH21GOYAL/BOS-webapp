@@ -627,10 +627,19 @@ let recordedChunks = [];
 let recordingTimer = null;
 let recordingSeconds = 0;
 
+// Recording-specific ROI crop support — frozen at the moment recording
+// starts (changing ROI mid-recording cannot resize an in-progress video,
+// so we lock it in and ignore further ROI changes until recording stops).
+let isRecording = false;
+let recordRoi = null;      // null = full frame, else {x,y,w,h} fixed at start
+let recordCanvas = null;
+let recordCtx = null;
+
 document.getElementById('recordBtn').addEventListener('click', function() {
   if (mediaRecorder && mediaRecorder.state === 'recording') {
     mediaRecorder.stop();
     clearInterval(recordingTimer);
+    isRecording = false;
     this.innerText = '🔴 Start Recording';
     document.getElementById('recordTimer').innerText = '00:00';
   } else {
@@ -641,7 +650,20 @@ document.getElementById('recordBtn').addEventListener('click', function() {
     recordingSeconds = 0;
     document.getElementById('downloadRecordBtn').style.display = 'none';
 
-    let stream = canvas.captureStream();
+    // Freeze the current ROI (if any) for the entire recording duration.
+    recordRoi = (roi && roi.w > 20 && roi.h > 20) ? { x: roi.x, y: roi.y, w: roi.w, h: roi.h } : null;
+
+    let recWidth = recordRoi ? Math.floor(recordRoi.w) : camWidth;
+    let recHeight = recordRoi ? Math.floor(recordRoi.h) : camHeight;
+
+    recordCanvas = document.createElement('canvas');
+    recordCanvas.width = recWidth;
+    recordCanvas.height = recHeight;
+    recordCtx = recordCanvas.getContext('2d');
+
+    isRecording = true;
+
+    let stream = recordCanvas.captureStream();
     mediaRecorder = new MediaRecorder(stream, {
   mimeType: 'video/webm',
   videoBitsPerSecond: 8000000  // 8 Mbps — higher = better quality, bigger file
@@ -675,6 +697,7 @@ document.getElementById('recordBtn').addEventListener('click', function() {
       if (recordingSeconds >= 30) {
         mediaRecorder.stop();
         clearInterval(recordingTimer);
+        isRecording = false;
         document.getElementById('recordBtn').innerText = '🔴 Start Recording';
         document.getElementById('recordTimer').innerText = '00:00';
       }
@@ -786,6 +809,24 @@ function captureFrames() {
       curr.delete();
       prevGray.delete();
       currGray.delete();
+    }
+
+    // If recording is active, copy the frozen crop region from the main
+    // canvas into the dedicated recording canvas — this is what actually
+    // gets streamed/recorded, so it stays locked to the ROI size chosen
+    // at recording start, regardless of any later ROI changes.
+    if (isRecording && recordCanvas) {
+      if (recordRoi) {
+        recordCtx.drawImage(
+          canvas,
+          Math.floor(recordRoi.x), Math.floor(recordRoi.y),
+          Math.floor(recordRoi.w), Math.floor(recordRoi.h),
+          0, 0,
+          recordCanvas.width, recordCanvas.height
+        );
+      } else {
+        recordCtx.drawImage(canvas, 0, 0, camWidth, camHeight, 0, 0, recordCanvas.width, recordCanvas.height);
+      }
     }
 
     prevFrame = currentFrame;
