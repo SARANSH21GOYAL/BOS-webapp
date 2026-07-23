@@ -512,15 +512,24 @@ document.getElementById('burstBtn').addEventListener('click', function() {
   this.innerText = "Capturing...";
   this.disabled = true;
 
+  // If an ROI is selected, capture only that cropped region — source-crop
+  // straight from the video feed (sx, sy, sw, sh) so the temp canvas itself
+  // is ROI-sized, not the full frame. Otherwise fall back to full frame.
+  let useRoi = roi && roi.w > 20 && roi.h > 20;
+  let captureX = useRoi ? Math.floor(roi.x) : 0;
+  let captureY = useRoi ? Math.floor(roi.y) : 0;
+  let captureW = useRoi ? Math.floor(roi.w) : camWidth;
+  let captureH = useRoi ? Math.floor(roi.h) : camHeight;
+
   let tempCanvas = document.createElement('canvas');
-  tempCanvas.width = camWidth;
-  tempCanvas.height = camHeight;
+  tempCanvas.width = captureW;
+  tempCanvas.height = captureH;
   let tempCtx = tempCanvas.getContext('2d');
-  tempCtx.drawImage(video, 0, 0, camWidth, camHeight);
+  tempCtx.drawImage(video, captureX, captureY, captureW, captureH, 0, 0, captureW, captureH);
   burstImg1 = tempCanvas.toDataURL('image/png');
 
   setTimeout(function() {
-    tempCtx.drawImage(video, 0, 0, camWidth, camHeight);
+    tempCtx.drawImage(video, captureX, captureY, captureW, captureH, 0, 0, captureW, captureH);
     burstImg2 = tempCanvas.toDataURL('image/png');
 
     let img1 = new Image();
@@ -528,13 +537,13 @@ document.getElementById('burstBtn').addEventListener('click', function() {
 
     img1.onload = function() {
       img2.onload = function() {
-        canvas.width = camWidth;
-        canvas.height = camHeight;
+        canvas.width = captureW;
+        canvas.height = captureH;
 
         ctx.drawImage(img1, 0, 0);
-        let frame1 = ctx.getImageData(0, 0, camWidth, camHeight);
+        let frame1 = ctx.getImageData(0, 0, captureW, captureH);
         ctx.drawImage(img2, 0, 0);
-        let frame2 = ctx.getImageData(0, 0, camWidth, camHeight);
+        let frame2 = ctx.getImageData(0, 0, captureW, captureH);
 
         let mat1 = cv.matFromImageData(frame1);
         let mat2 = cv.matFromImageData(frame2);
@@ -604,6 +613,11 @@ document.getElementById('resumeBurstBtn').addEventListener('click', function() {
   document.getElementById('burstDownloads').style.display = 'none';
   document.getElementById('exportReportBurstBtn').style.display = 'none';
   document.getElementById('exportJsonBurstBtn').style.display = 'none';
+
+  // Reset canvas back to full default size — burst may have shrunk it
+  // to ROI dimensions for cropped capture/computation.
+  canvas.width = camWidth;
+  canvas.height = camHeight;
 
   captureFrames();
 });
