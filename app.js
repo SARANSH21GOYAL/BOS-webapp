@@ -12,6 +12,14 @@ let prevFrame = null;
 let referenceFrame = null;
 let contrastStrength = 3;
 
+// Custom "Slider" resolution mode — instead of forcing an exact width+height
+// (which distorts/stretches on devices whose natural camera aspect ratio
+// doesn't match), this only requests a target HEIGHT from the camera and
+// lets the browser pick the natural width for that height — avoiding stretch.
+let useAutoResolution = false;
+const RESOLUTION_STEPS = [360, 480, 720, 1080]; // heights only; width auto
+let targetHeight = 720;
+
 // Algorithm selector — 'opticalflow' (Farneback, has direction) or
 // 'cfs' (Consecutive Frame Subtraction — Pocket Schlieren's fast, live-mode
 // technique: simple absolute difference between frames, no direction info).
@@ -391,14 +399,45 @@ document.getElementById('windowSlider').addEventListener('input', function() {
 });
 
 document.getElementById('resSelect').addEventListener('change', function() {
-  let parts = this.value.split('x');
-  camWidth = parseInt(parts[0]);
-  camHeight = parseInt(parts[1]);
-  document.getElementById('resVal').innerText = this.value;
-  canvas.width = camWidth;
-  canvas.height = camHeight;
-  video.width = camWidth;
-  video.height = camHeight;
+  if (this.value === 'slider') {
+    // Switch to auto-aspect-ratio mode — show the quality slider, hide
+    // the fixed-resolution behaviour. Actual camWidth/camHeight will be
+    // set later from the real video stream dimensions (natural ratio).
+    useAutoResolution = true;
+    document.getElementById('resSliderGroup').style.display = 'block';
+    document.getElementById('resVal').innerText = 'Auto';
+
+    targetHeight = RESOLUTION_STEPS[document.getElementById('resSlider').value];
+    document.getElementById('resSliderVal').innerText = targetHeight + 'p';
+  } else {
+    // Back to fixed width x height mode (old behaviour)
+    useAutoResolution = false;
+    document.getElementById('resSliderGroup').style.display = 'none';
+
+    let parts = this.value.split('x');
+    camWidth = parseInt(parts[0]);
+    camHeight = parseInt(parts[1]);
+    document.getElementById('resVal').innerText = this.value;
+    canvas.width = camWidth;
+    canvas.height = camHeight;
+    video.width = camWidth;
+    video.height = camHeight;
+  }
+
+  prevFrame = null;
+  referenceFrame = null;
+  roi = null;
+  document.getElementById('captureBtn').innerText = "Capture Reference Frame";
+  startWebcam();
+});
+
+// Quality slider (360p/480p/720p/1080p) — only active when resSelect is
+// set to 'slider' mode. Only requests height from the camera; width is
+// left to the browser's natural aspect ratio for that device.
+document.getElementById('resSlider').addEventListener('input', function() {
+  targetHeight = RESOLUTION_STEPS[parseInt(this.value)];
+  document.getElementById('resSliderVal').innerText = targetHeight + 'p';
+
   prevFrame = null;
   referenceFrame = null;
   roi = null;
@@ -715,32 +754,60 @@ function startWebcam() {
     video.srcObject.getTracks().forEach(track => track.stop());
   }
 
-  let constraints = {
-    video: {
-      facingMode: { exact: currentCamera },
-      width: camWidth,
-      height: camHeight
-    }
-  };
+  // In auto-resolution ("slider") mode, only request a target height —
+  // no width constraint at all — so the browser picks the device's own
+  // natural width for that height, avoiding the stretch/distortion that
+  // happens when forcing an exact width+height combo the camera doesn't
+  // natively support.
+  let videoConstraints = useAutoResolution
+    ? { facingMode: { exact: currentCamera }, height: { ideal: targetHeight } }
+    : { facingMode: { exact: currentCamera }, width: camWidth, height: camHeight };
+
+  let constraints = { video: videoConstraints };
 
   navigator.mediaDevices.getUserMedia(constraints)
     .then(function(stream) {
       video.srcObject = stream;
       console.log("Webcam working! Camera: " + currentCamera);
+
+      // Once the stream's real dimensions are known, sync canvas/camWidth/
+      // camHeight to them — critical in auto mode where we didn't dictate
+      // width, but harmless (a no-op) in fixed mode too.
+      video.onloadedmetadata = function() {
+        if (useAutoResolution) {
+          camWidth = video.videoWidth;
+          camHeight = video.videoHeight;
+          canvas.width = camWidth;
+          canvas.height = camHeight;
+          video.width = camWidth;
+          video.height = camHeight;
+        }
+      };
+
       setTimeout(captureFrames, 1000);
     })
     .catch(function(error) {
       console.log("Camera switch error: " + error);
-      navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: currentCamera,
-          width: camWidth,
-          height: camHeight
-        }
-      })
+      let fallbackConstraints = useAutoResolution
+        ? { facingMode: currentCamera, height: { ideal: targetHeight } }
+        : { facingMode: currentCamera, width: camWidth, height: camHeight };
+
+      navigator.mediaDevices.getUserMedia({ video: fallbackConstraints })
       .then(function(stream) {
         video.srcObject = stream;
         console.log("Webcam working fallback!");
+
+        video.onloadedmetadata = function() {
+          if (useAutoResolution) {
+            camWidth = video.videoWidth;
+            camHeight = video.videoHeight;
+            canvas.width = camWidth;
+            canvas.height = camHeight;
+            video.width = camWidth;
+            video.height = camHeight;
+          }
+        };
+
         setTimeout(captureFrames, 1000);
       })
       .catch(function(err) {
