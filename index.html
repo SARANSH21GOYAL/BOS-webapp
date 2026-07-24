@@ -62,9 +62,13 @@
           <option value="640x480" selected>640x480 (Default)</option>
           <option value="320x240">320x240 (Fast)</option>
           <option value="160x120">160x120 (Fastest)</option>
+          <option value="slider">🎚️ Custom (Natural Aspect Ratio)</option>
         </select>
       </div>
-    </div>
+      <div class="slider-group" id="resSliderGroup" style="display:none">
+        <label>Quality: <span id="resSliderVal">720p</span></label>
+        <input type="range" id="resSlider" min="0" max="3" step="1" value="2">
+      </div>
 
     <!-- Upload Section -->
     <div id="uploadSection">
