@@ -754,65 +754,140 @@ function startWebcam() {
     video.srcObject.getTracks().forEach(track => track.stop());
   }
 
-  // In auto-resolution ("slider") mode, only request a target height —
-  // no width constraint at all — so the browser picks the device's own
-  // natural width for that height, avoiding the stretch/distortion that
-  // happens when forcing an exact width+height combo the camera doesn't
-  // natively support.
-  let videoConstraints = useAutoResolution
-    ? { facingMode: { exact: currentCamera }, height: { ideal: targetHeight } }
-    : { facingMode: { exact: currentCamera }, width: camWidth, height: camHeight };
+  if (useAutoResolution) {
+    startWebcamAutoResolution();
+  } else {
+    startWebcamFixedResolution();
+  }
+}
 
-  let constraints = { video: videoConstraints };
+// Fixed-resolution mode (old dropdown options) — unchanged behaviour.
+function startWebcamFixedResolution() {
+  let constraints = {
+    video: {
+      facingMode: { exact: currentCamera },
+      width: camWidth,
+      height: camHeight
+    }
+  };
 
   navigator.mediaDevices.getUserMedia(constraints)
     .then(function(stream) {
       video.srcObject = stream;
       console.log("Webcam working! Camera: " + currentCamera);
-
-      // Once the stream's real dimensions are known, sync canvas/camWidth/
-      // camHeight to them — critical in auto mode where we didn't dictate
-      // width, but harmless (a no-op) in fixed mode too.
-      video.onloadedmetadata = function() {
-        if (useAutoResolution) {
-          camWidth = video.videoWidth;
-          camHeight = video.videoHeight;
-          canvas.width = camWidth;
-          canvas.height = camHeight;
-          video.width = camWidth;
-          video.height = camHeight;
-        }
-      };
-
       setTimeout(captureFrames, 1000);
     })
     .catch(function(error) {
       console.log("Camera switch error: " + error);
-      let fallbackConstraints = useAutoResolution
-        ? { facingMode: currentCamera, height: { ideal: targetHeight } }
-        : { facingMode: currentCamera, width: camWidth, height: camHeight };
-
-      navigator.mediaDevices.getUserMedia({ video: fallbackConstraints })
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: currentCamera, width: camWidth, height: camHeight }
+      })
       .then(function(stream) {
         video.srcObject = stream;
         console.log("Webcam working fallback!");
+        setTimeout(captureFrames, 1000);
+      })
+      .catch(function(err) {
+        console.log("Webcam error: " + err);
+      });
+    });
+}
 
-        video.onloadedmetadata = function() {
-          if (useAutoResolution) {
+// Auto-resolution ("Custom" slider) mode — two-step approach:
+// Step 1: request the camera with NO width/height constraint at all, just
+// to discover its true natural aspect ratio (some browsers/devices default
+// to an unexpected ratio like 1:1 when only height is given, which is the
+// bug we saw — this sidesteps that entirely).
+// Step 2: stop that probe stream, then request the real stream with BOTH
+// width and height explicitly set, computed from the natural ratio scaled
+// to the target height — guaranteeing no distortion regardless of what
+// the browser would have defaulted to.
+function startWebcamAutoResolution() {
+  let probeConstraints = { video: { facingMode: { exact: currentCamera } } };
+
+  navigator.mediaDevices.getUserMedia(probeConstraints)
+    .then(function(probeStream) {
+      let probeTrack = probeStream.getVideoTracks()[0];
+      let settings = probeTrack.getSettings();
+      let nativeWidth = settings.width;
+      let nativeHeight = settings.height;
+      let aspectRatio = nativeWidth / nativeHeight;
+
+      // Done sniffing — stop the probe stream before opening the real one.
+      probeStream.getTracks().forEach(track => track.stop());
+
+      let scaledHeight = targetHeight;
+      let scaledWidth = Math.round(scaledHeight * aspectRatio);
+
+      let realConstraints = {
+        video: {
+          facingMode: { exact: currentCamera },
+          width: scaledWidth,
+          height: scaledHeight
+        }
+      };
+
+      navigator.mediaDevices.getUserMedia(realConstraints)
+        .then(function(stream) {
+          video.srcObject = stream;
+          console.log("Webcam working (auto-res)! Native: " + nativeWidth + "x" + nativeHeight + " -> Scaled: " + scaledWidth + "x" + scaledHeight);
+
+          video.onloadedmetadata = function() {
             camWidth = video.videoWidth;
             camHeight = video.videoHeight;
             canvas.width = camWidth;
             canvas.height = camHeight;
             video.width = camWidth;
             video.height = camHeight;
-          }
-        };
+          };
 
-        setTimeout(captureFrames, 1000);
-      })
-      .catch(function(err) {
-        console.log("Webcam error: " + err);
-      });
+          setTimeout(captureFrames, 1000);
+        })
+        .catch(function(err) {
+          console.log("Auto-res webcam error: " + err);
+        });
+    })
+    .catch(function(error) {
+      console.log("Probe stream error: " + error);
+      // Fallback: probe failed (maybe 'exact' facingMode unsupported) — retry
+      // probe without 'exact', then proceed the same way.
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: currentCamera } })
+        .then(function(probeStream) {
+          let probeTrack = probeStream.getVideoTracks()[0];
+          let settings = probeTrack.getSettings();
+          let nativeWidth = settings.width;
+          let nativeHeight = settings.height;
+          let aspectRatio = nativeWidth / nativeHeight;
+          probeStream.getTracks().forEach(track => track.stop());
+
+          let scaledHeight = targetHeight;
+          let scaledWidth = Math.round(scaledHeight * aspectRatio);
+
+          navigator.mediaDevices.getUserMedia({
+            video: { facingMode: currentCamera, width: scaledWidth, height: scaledHeight }
+          })
+          .then(function(stream) {
+            video.srcObject = stream;
+            console.log("Webcam working (auto-res fallback)!");
+
+            video.onloadedmetadata = function() {
+              camWidth = video.videoWidth;
+              camHeight = video.videoHeight;
+              canvas.width = camWidth;
+              canvas.height = camHeight;
+              video.width = camWidth;
+              video.height = camHeight;
+            };
+
+            setTimeout(captureFrames, 1000);
+          })
+          .catch(function(err) {
+            console.log("Auto-res fallback webcam error: " + err);
+          });
+        })
+        .catch(function(err) {
+          console.log("Probe fallback error: " + err);
+        });
     });
 }
 
