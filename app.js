@@ -807,87 +807,70 @@ function startWebcamAutoResolution() {
 
   navigator.mediaDevices.getUserMedia(probeConstraints)
     .then(function(probeStream) {
-      let probeTrack = probeStream.getVideoTracks()[0];
-      let settings = probeTrack.getSettings();
-      let nativeWidth = settings.width;
-      let nativeHeight = settings.height;
-      let aspectRatio = nativeWidth / nativeHeight;
-
-      // Done sniffing — stop the probe stream before opening the real one.
-      probeStream.getTracks().forEach(track => track.stop());
-
-      let scaledHeight = targetHeight;
-      let scaledWidth = Math.round(scaledHeight * aspectRatio);
-
-      let realConstraints = {
-        video: {
-          facingMode: { exact: currentCamera },
-          width: scaledWidth,
-          height: scaledHeight
-        }
-      };
-
-      navigator.mediaDevices.getUserMedia(realConstraints)
-        .then(function(stream) {
-          video.srcObject = stream;
-          console.log("Webcam working (auto-res)! Native: " + nativeWidth + "x" + nativeHeight + " -> Scaled: " + scaledWidth + "x" + scaledHeight);
-
-          video.onloadedmetadata = function() {
-            camWidth = video.videoWidth;
-            camHeight = video.videoHeight;
-            canvas.width = camWidth;
-            canvas.height = camHeight;
-            video.width = camWidth;
-            video.height = camHeight;
-          };
-
-          setTimeout(captureFrames, 1000);
-        })
-        .catch(function(err) {
-          console.log("Auto-res webcam error: " + err);
-        });
+      openScaledStream(probeStream, currentCamera);
     })
     .catch(function(error) {
       console.log("Probe stream error: " + error);
-      // Fallback: probe failed (maybe 'exact' facingMode unsupported) — retry
-      // probe without 'exact', then proceed the same way.
       navigator.mediaDevices.getUserMedia({ video: { facingMode: currentCamera } })
         .then(function(probeStream) {
-          let probeTrack = probeStream.getVideoTracks()[0];
-          let settings = probeTrack.getSettings();
-          let nativeWidth = settings.width;
-          let nativeHeight = settings.height;
-          let aspectRatio = nativeWidth / nativeHeight;
-          probeStream.getTracks().forEach(track => track.stop());
-
-          let scaledHeight = targetHeight;
-          let scaledWidth = Math.round(scaledHeight * aspectRatio);
-
-          navigator.mediaDevices.getUserMedia({
-            video: { facingMode: currentCamera, width: scaledWidth, height: scaledHeight }
-          })
-          .then(function(stream) {
-            video.srcObject = stream;
-            console.log("Webcam working (auto-res fallback)!");
-
-            video.onloadedmetadata = function() {
-              camWidth = video.videoWidth;
-              camHeight = video.videoHeight;
-              canvas.width = camWidth;
-              canvas.height = camHeight;
-              video.width = camWidth;
-              video.height = camHeight;
-            };
-
-            setTimeout(captureFrames, 1000);
-          })
-          .catch(function(err) {
-            console.log("Auto-res fallback webcam error: " + err);
-          });
+          openScaledStream(probeStream, currentCamera);
         })
         .catch(function(err) {
           console.log("Probe fallback error: " + err);
         });
+    });
+}
+
+// Given an already-open probe stream, reads the camera's true native aspect
+// ratio from getCapabilities() (its actual max supported width/height — the
+// real sensor ratio) rather than getSettings() (the CURRENT preview format,
+// which some Android/Chrome combinations default to an unexpected 1:1
+// square regardless of the real sensor shape — the bug we were hitting).
+// Then stops the probe and opens the real stream scaled to targetHeight
+// using that ratio.
+function openScaledStream(probeStream, cameraFacing) {
+  let probeTrack = probeStream.getVideoTracks()[0];
+  let capabilities = probeTrack.getCapabilities();
+
+  let nativeWidth = capabilities.width ? capabilities.width.max : probeTrack.getSettings().width;
+  let nativeHeight = capabilities.height ? capabilities.height.max : probeTrack.getSettings().height;
+  let aspectRatio = nativeWidth / nativeHeight;
+
+  console.log("Camera capabilities — max native: " + nativeWidth + "x" + nativeHeight + " (ratio " + aspectRatio.toFixed(3) + ")");
+
+  // Done sniffing — stop the probe stream before opening the real one.
+  probeStream.getTracks().forEach(track => track.stop());
+
+  let scaledHeight = targetHeight;
+  let scaledWidth = Math.round(scaledHeight * aspectRatio);
+
+  let realConstraints = {
+    video: {
+      facingMode: { exact: cameraFacing },
+      width: scaledWidth,
+      height: scaledHeight
+    }
+  };
+
+  navigator.mediaDevices.getUserMedia(realConstraints)
+    .then(function(stream) {
+      video.srcObject = stream;
+      console.log("Webcam working (auto-res)! Requested: " + scaledWidth + "x" + scaledHeight + " -> Actual: (check onloadedmetadata log below)");
+
+      video.onloadedmetadata = function() {
+        camWidth = video.videoWidth;
+        camHeight = video.videoHeight;
+        canvas.width = camWidth;
+        canvas.height = camHeight;
+        video.width = camWidth;
+        video.height = camHeight;
+        console.log("Actual video dimensions: " + camWidth + "x" + camHeight);
+      };
+
+      setTimeout(captureFrames, 1000);
+    })
+    .catch(function(err) {
+      console.log("Auto-res webcam error: " + err);
     });
 }
 
