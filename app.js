@@ -12,6 +12,11 @@ let prevFrame = null;
 let referenceFrame = null;
 let contrastStrength = 3;
 
+// Noise Threshold — zeroes out weak/noise-level magnitude before contrast
+// stretching. 0 = off (default, no-op). Multiplier for mean+std noise floor,
+// same pattern as contrastStrength (auto-adapts to lighting/scene per frame).
+let noiseThreshold = 0;
+
 // Custom "Slider" resolution mode — instead of forcing an exact width+height
 // (which distorts/stretches on devices whose natural camera aspect ratio
 // doesn't match), this only requests a target HEIGHT from the camera and
@@ -98,6 +103,7 @@ function exportReport(img1DataUrl, img2DataUrl, resultDataUrl) {
     <tr><td>Algorithm</td><td>${algorithmMode}</td></tr>
     <tr><td>Colormap</td><td>${colorMode}</td></tr>
     <tr><td>Contrast Strength</td><td>${contrastStrength}</td></tr>
+    <tr><td>Noise Threshold</td><td>${noiseThreshold}</td></tr>
     <tr><td>Gamma</td><td>${gammaValue}</td></tr>
     <tr><td>Levels</td><td>${levels}</td></tr>
     <tr><td>Window Size</td><td>${windowSize}</td></tr>
@@ -141,6 +147,7 @@ function exportReportJSON(refFilename, flowFilename, resultFilename) {
       algorithm: algorithmMode,
       colormap: colorMode,
       contrastStrength: contrastStrength,
+      noiseThreshold: noiseThreshold,
       gamma: gammaValue,
       levels: levels,
       windowSize: windowSize,
@@ -380,6 +387,11 @@ document.getElementById('pauseBtn').addEventListener('click', function() {
 document.getElementById('contrastSlider').addEventListener('input', function() {
   contrastStrength = parseFloat(this.value);
   document.getElementById('contrastVal').innerText = this.value;
+});
+
+document.getElementById('thresholdSlider').addEventListener('input', function() {
+  noiseThreshold = parseFloat(this.value);
+  document.getElementById('thresholdVal').innerText = this.value;
 });
 
 document.getElementById('gammaSlider').addEventListener('input', function() {
@@ -1100,16 +1112,33 @@ function normalizeMagnitudeRobust(magnitude, magNorm) {
     meanMat.delete();
     stddevMat.delete();
 
+    // Noise Threshold — zeroes out weak/noise-level magnitude BEFORE the
+    // upper-clip/stretch below, using the same mean+std statistics so it
+    // auto-adapts to lighting/scene per frame. 0 = off (default, no-op).
+    // Note: not recommended to combine with Histogram Equalization, since
+    // HistEq redistributes the whole histogram and can partially "spread"
+    // a large zero-spike back into non-zero values, undoing this effect.
+    let workingMag = magnitude;
+    let thresholded = null;
+    if (noiseThreshold > 0) {
+      let noiseFloor = meanVal + noiseThreshold * stdVal;
+      thresholded = new cv.Mat();
+      cv.threshold(magnitude, thresholded, noiseFloor, 0, cv.THRESH_TOZERO);
+      workingMag = thresholded;
+    }
+
     let clipMax = meanVal + contrastStrength * stdVal;
     if (!isFinite(clipMax) || clipMax < 1e-6) {
-      cv.normalize(magnitude, magNorm, 0, 255, cv.NORM_MINMAX);
+      cv.normalize(workingMag, magNorm, 0, 255, cv.NORM_MINMAX);
+      if (thresholded) thresholded.delete();
       return;
     }
 
     let clipped = new cv.Mat();
-    cv.threshold(magnitude, clipped, clipMax, clipMax, cv.THRESH_TRUNC);
+    cv.threshold(workingMag, clipped, clipMax, clipMax, cv.THRESH_TRUNC);
     cv.normalize(clipped, magNorm, 0, 255, cv.NORM_MINMAX);
     clipped.delete();
+    if (thresholded) thresholded.delete();
   } catch (err) {
     console.error('Robust normalize failed, falling back to plain min-max:', err);
     cv.normalize(magnitude, magNorm, 0, 255, cv.NORM_MINMAX);
